@@ -1,0 +1,19 @@
+import Swiper from 'swiper';
+import 'swiper/css';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
+import gsap from 'gsap';
+
+// Hero Slider
+const heroSwiper = new Swiper('.hero-slider', {
+  loop: true,
+  autoplay: { delay: 5000 },
+  pagination: { el: '.swiper-pagination', clickable: true },
+  navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' }
+});
+
+// AOS Animations
+AOS.init({ duration: 1000, once: true });
+
+// GSAP Header Animation
+gsap.from("header", { y: -100, opacity: 0, duration: 1 });
