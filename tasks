@@ -1,0 +1,18 @@
+ {
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start AI_Agentina",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "C:\\Users\\HP\\OneDrive\\Desktop\\Zwelithini\\SA Distribution\\AI_Agentina\\main.py"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
