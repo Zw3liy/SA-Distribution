@@ -1,0 +1,35 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Secrets / credentials -- never commit these
+*API*key*.md
+*Api*key*.md
+*api*key*.md
+*Key.txt
+*.pem
+*.key
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Vendored runtimes / binaries -- install locally instead, do not commit
+*.exe
+*.dll
+*.lib
+*.phar
+ext/
+sasl2/
+dev/
+extras/
+lib/enchant/
+php.ini-*

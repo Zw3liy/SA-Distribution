@@ -66,7 +66,7 @@ class CartService
         $items = $this->getPersistedCartItems($sessionId);
         foreach ($items as &$item) {
             if ($item['slug'] === $slug) {
-                $item['quantity'] = min($product->stock, $item['quantity'] + $quantity);
+                $item['quantity'] = min((int) $product['stock'], $item['quantity'] + $quantity);
                 $this->cartRepository->saveCartItems($sessionId, $items);
                 return;
             }
@@ -74,14 +74,14 @@ class CartService
         unset($item);
 
         $items[] = [
-            'product_id' => $product->id,
-            'slug' => $product->slug,
-            'name' => $product->name,
-            'sku' => $product->sku,
-            'price' => $product->price,
-            'sale_price' => $product->salePrice,
-            'quantity' => min($quantity, $product->stock),
-            'thumbnail' => $product->thumbnail,
+            'product_id' => $product['id'],
+            'slug' => $product['slug'],
+            'name' => $product['name'],
+            'sku' => $product['sku'],
+            'price' => $product['price'],
+            'sale_price' => $product['sale_price'],
+            'quantity' => min($quantity, (int) $product['stock']),
+            'thumbnail' => $product['thumbnail'],
         ];
 
         $this->cartRepository->saveCartItems($sessionId, $items);
@@ -101,7 +101,7 @@ class CartService
                         throw new InvalidArgumentException('Product not found.');
                     }
 
-                    $items[$index]['quantity'] = min($quantity, $product->stock);
+                    $items[$index]['quantity'] = min($quantity, (int) $product['stock']);
                 }
 
                 $this->cartRepository->saveCartItems($sessionId, array_values($items));

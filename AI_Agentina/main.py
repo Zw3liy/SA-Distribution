@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
 import os
 import sys
+
 import anthropic
 import openai
+import ollama
 
 # ============================================================
 # Load Environment Variables
@@ -10,63 +12,56 @@ import openai
 
 load_dotenv(override=True)
 
-AI_PROVIDER = os.getenv("AI_PROVIDER", "anthropic").lower()
-ANTHROPIC_MODEL = os.getenv(
-    "ANTHROPIC_MODEL",
-    "claude-3-5-sonnet-latest"
-)
+AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama").lower()
+
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-print("=" * 60)
-
-if ANTHROPIC_KEY:
-    print("Key loaded successfully")
-    print("Starts with :", repr(ANTHROPIC_KEY[:20]))
-    print("Ends with   :", repr(ANTHROPIC_KEY[-10:]))
-    print("Length      :", len(ANTHROPIC_KEY))
-else:
-    print("No key loaded")
-
-print("=" * 60)
-
 # ============================================================
-# Display Startup Information
+# Startup
 # ============================================================
 
 print("=" * 60)
 print("AI_Agentina Enterprise CLI")
 print("=" * 60)
+
 print(f"Provider : {AI_PROVIDER}")
 
-if ANTHROPIC_KEY:
-    print(f"Anthropic Key : Loaded ({len(ANTHROPIC_KEY)} characters)")
-else:
-    print("Anthropic Key : NOT FOUND")
+if AI_PROVIDER == "ollama":
+    print(f"Model    : {OLLAMA_MODEL}")
 
-if OPENAI_KEY:
-    print("OpenAI Key    : Loaded")
-else:
-    print("OpenAI Key    : Not configured")
+elif AI_PROVIDER == "anthropic":
+    print(f"Model    : {ANTHROPIC_MODEL}")
+
+elif AI_PROVIDER == "openai":
+    print(f"Model    : {OPENAI_MODEL}")
 
 print("=" * 60)
 
 # ============================================================
-# Initialize AI Clients
+# Initialize Clients
 # ============================================================
 
 client_claude = None
 
 if ANTHROPIC_KEY:
+
     try:
+
         client_claude = anthropic.Anthropic(
             api_key=ANTHROPIC_KEY.strip()
         )
+
     except Exception as e:
-        print(f"Failed to initialize Claude client: {e}")
+
+        print(e)
 
 if OPENAI_KEY:
+
     openai.api_key = OPENAI_KEY.strip()
 
 # ============================================================
@@ -76,7 +71,8 @@ if OPENAI_KEY:
 def ask_claude(prompt):
 
     if client_claude is None:
-        return "Claude client is not configured."
+
+        return "Claude client not configured."
 
     try:
 
@@ -101,6 +97,7 @@ def ask_claude(prompt):
 
         return f"Claude Error:\n{e}"
 
+
 # ============================================================
 # OpenAI
 # ============================================================
@@ -108,7 +105,8 @@ def ask_claude(prompt):
 def ask_openai(prompt):
 
     if not OPENAI_KEY:
-        return "OpenAI API key not configured."
+
+        return "OpenAI API Key not configured."
 
     try:
 
@@ -116,7 +114,7 @@ def ask_openai(prompt):
 
         response = client.chat.completions.create(
 
-            model="gpt-4.1",
+            model=OPENAI_MODEL,
 
             messages=[
                 {
@@ -133,6 +131,35 @@ def ask_openai(prompt):
 
         return f"OpenAI Error:\n{e}"
 
+
+# ============================================================
+# Ollama
+# ============================================================
+
+def ask_ollama(prompt):
+
+    try:
+
+        response = ollama.chat(
+
+            model=OLLAMA_MODEL,
+
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+
+        )
+
+        return response["message"]["content"]
+
+    except Exception as e:
+
+        return f"Ollama Error:\n{e}"
+
+
 # ============================================================
 # Plugins
 # ============================================================
@@ -143,19 +170,28 @@ def help_plugin(arg):
 Available Commands
 
 :help
-:system
 :provider
+:system
 """
 
-def system_plugin(arg):
-
-    return f"""
-Platform : {sys.platform}
-
-Python   : {sys.version}
-"""
 
 def provider_plugin(arg):
+
+    if AI_PROVIDER == "ollama":
+
+        model = OLLAMA_MODEL
+
+    elif AI_PROVIDER == "anthropic":
+
+        model = ANTHROPIC_MODEL
+
+    elif AI_PROVIDER == "openai":
+
+        model = OPENAI_MODEL
+
+    else:
+
+        model = "Unknown"
 
     return f"""
 Current Provider
@@ -164,31 +200,68 @@ Current Provider
 
 Current Model
 
-{ANTHROPIC_MODEL}
+{model}
 """
+
+
+def system_plugin(arg):
+
+    return f"""
+Platform
+
+{sys.platform}
+
+Python
+
+{sys.version}
+"""
+
 
 PLUGINS = {
 
     "help": help_plugin,
 
-    "system": system_plugin,
+    "provider": provider_plugin,
 
-    "provider": provider_plugin
+    "system": system_plugin
 
 }
 
 # ============================================================
-# Agent Loop
+# Chat Router
 # ============================================================
 
-def run_agent():
+def ask(prompt):
+
+    if AI_PROVIDER == "ollama":
+
+        return ask_ollama(prompt)
+
+    elif AI_PROVIDER == "anthropic":
+
+        return ask_claude(prompt)
+
+    elif AI_PROVIDER == "openai":
+
+        return ask_openai(prompt)
+
+    else:
+
+        return f"Unknown provider '{AI_PROVIDER}'."
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+def run():
 
     print()
-    print(f"AI Provider : {AI_PROVIDER}")
-    print(f"Claude Model: {ANTHROPIC_MODEL}")
-    print()
+
     print("Type exit to quit.")
+
     print("Type :help for commands.")
+
     print()
 
     while True:
@@ -200,6 +273,7 @@ def run_agent():
         except (KeyboardInterrupt, EOFError):
 
             print("\nGoodbye.")
+
             break
 
         if not prompt:
@@ -230,31 +304,18 @@ def run_agent():
 
             else:
 
-                print("Unknown command.")
+                print("\nUnknown command.\n")
 
             continue
 
-        print()
+        print("\nThinking...\n")
 
-        print("Thinking...")
-
-        if AI_PROVIDER == "anthropic":
-
-            answer = ask_claude(prompt)
-
-        elif AI_PROVIDER == "openai":
-
-            answer = ask_openai(prompt)
-
-        else:
-
-            answer = f"Unknown provider '{AI_PROVIDER}'."
-
-        print()
+        answer = ask(prompt)
 
         print(answer)
 
         print()
+
 
 # ============================================================
 # Main
@@ -262,4 +323,4 @@ def run_agent():
 
 if __name__ == "__main__":
 
-    run_agent()
+    run()
