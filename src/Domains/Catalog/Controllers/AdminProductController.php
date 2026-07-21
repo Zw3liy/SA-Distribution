@@ -10,6 +10,7 @@ use App\Domains\Catalog\Exceptions\ProductNotFoundException;
 use App\Domains\Catalog\Exceptions\SlugImmutableException;
 use App\Domains\Catalog\Services\ProductServiceInterface;
 use App\Domains\Identity\Services\UserServiceInterface;
+use App\Domains\Inventory\Services\InventoryServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
 use App\Support\View;
@@ -36,6 +37,19 @@ class AdminProductController
     /** @var AuditLoggerInterface */
     private $auditLogger;
 
+    /**
+     * Consumes Catalog\Events\ProductCreated (docs/specs/05-inventory.md
+     * §10) as a direct, synchronous controller-level call rather than a
+     * real event-bus subscription -- this platform has none (see
+     * Customers' AuthController->CustomerService retrofit for the same
+     * pattern). Ensures every product created through this screen
+     * immediately has a zero-quantity InventoryItem in the default
+     * warehouse.
+     *
+     * @var InventoryServiceInterface
+     */
+    private $inventoryService;
+
     /** @var Config */
     private $config;
 
@@ -43,11 +57,13 @@ class AdminProductController
         ProductServiceInterface $productService,
         UserServiceInterface $userService,
         AuditLoggerInterface $auditLogger,
+        InventoryServiceInterface $inventoryService,
         Config $config
     ) {
         $this->productService = $productService;
         $this->userService = $userService;
         $this->auditLogger = $auditLogger;
+        $this->inventoryService = $inventoryService;
         $this->config = $config;
     }
 
@@ -135,7 +151,16 @@ class AdminProductController
             'price' => $product->price,
         ]);
 
-        setFlashMessage('Product created.');
+        // Zero-quantity by design (docs/specs/05-inventory.md §10) --
+        // this immediately supersedes whatever value was entered in this
+        // form's legacy "stock" field, since products.stock is now a
+        // read-only mirror of Inventory (§2). Real initial stock must be
+        // set afterward via /admin/inventory/adjust, which is
+        // audit-trailed; documented as a workflow change in
+        // docs/reports/PHASE5-INVENTORY-COMPLETION-REPORT.md.
+        $this->inventoryService->initializeForProduct($product->id);
+
+        setFlashMessage('Product created. Set its initial stock via Inventory.');
     }
 
     private function updateProduct(): void

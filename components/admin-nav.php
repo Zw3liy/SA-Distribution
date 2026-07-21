@@ -15,9 +15,9 @@ declare(strict_types=1);
             <a href="/admin">Dashboard</a>
             <a href="/admin/catalog/products">Catalog</a>
             <a href="/admin/customers">Customers</a>
+            <a href="/admin/inventory">Inventory</a>
             <a href="/admin/staff">Staff</a>
             <a href="/admin/settings">Settings</a>
             <a href="/admin/feature-flags">Feature Flags</a>
             <a href="/admin/audit-log">Audit Log</a>
-            <a href="/">Storefront</a>
-            <a href="/logout
+            <a

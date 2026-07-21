@@ -58,6 +58,17 @@ use App\Domains\Identity\Services\AuthService;
 use App\Domains\Identity\Services\AuthServiceInterface;
 use App\Domains\Identity\Services\UserService;
 use App\Domains\Identity\Services\UserServiceInterface;
+use App\Domains\Inventory\Controllers\AdminInventoryController;
+use App\Domains\Inventory\Repositories\InventoryItemRepository;
+use App\Domains\Inventory\Repositories\InventoryItemRepositoryInterface;
+use App\Domains\Inventory\Repositories\StockMovementRepository;
+use App\Domains\Inventory\Repositories\StockMovementRepositoryInterface;
+use App\Domains\Inventory\Repositories\StockReservationRepository;
+use App\Domains\Inventory\Repositories\StockReservationRepositoryInterface;
+use App\Domains\Inventory\Repositories\WarehouseRepository;
+use App\Domains\Inventory\Repositories\WarehouseRepositoryInterface;
+use App\Domains\Inventory\Services\InventoryService;
+use App\Domains\Inventory\Services\InventoryServiceInterface;
 use App\Logging\Logger;
 use App\Repositories\CartRepository;
 use App\Repositories\QuoteRepository;
@@ -145,10 +156,11 @@ final class Kernel
      * per-screen permission checks (defense layer 2) are enforced
      * inside each admin controller action via
      * UserServiceInterface::hasPermission() -- Catalog's
-     * AdminProductController and Customers' AdminCustomerController
-     * both enforce this second layer, now that the permission catalog
-     * has been seeded (docs/specs/03-catalog.md §19,
-     * docs/specs/04-customers.md §19 migrations; see also
+     * AdminProductController, Customers' AdminCustomerController, and
+     * Inventory's AdminInventoryController all enforce this second
+     * layer, now that the permission catalog has been seeded
+     * (docs/specs/03-catalog.md §19, docs/specs/04-customers.md §19,
+     * docs/specs/05-inventory.md §19 migrations; see also
      * docs/reports/PHASE5-ADMINISTRATION-COMPLETION-REPORT.md, which
      * flagged the empty permission catalog as a deferred risk).
      */
@@ -318,8 +330,11 @@ final class Kernel
         $this->container->set(ProductController::class, function (Container $c) {
             return new ProductController($c->get(ProductServiceInterface::class), $c->get('config'));
         });
+        // AdminProductController now also depends on Inventory's
+        // InventoryServiceInterface (docs/specs/05-inventory.md §10 --
+        // consumes Catalog\Events\ProductCreated as a direct call).
         $this->container->set(AdminProductController::class, function (Container $c) {
-            return new AdminProductController($c->get(ProductServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+            return new AdminProductController($c->get(ProductServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get(InventoryServiceInterface::class), $c->get('config'));
         });
 
         // Customers domain — bound by interface, per docs/specs/04-customers.md §5/§6.
@@ -343,6 +358,46 @@ final class Kernel
         });
         $this->container->set(AdminCustomerController::class, function (Container $c) {
             return new AdminCustomerController($c->get(CustomerServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+
+        // Inventory domain — bound by interface, per docs/specs/05-inventory.md §5/§6.
+        // InventoryService depends on Catalog's ProductRepositoryInterface
+        // directly (not a new Inventory-owned abstraction) solely to keep
+        // the products.stock compatibility mirror in sync (§2) -- the same
+        // precedent as CartService depending directly on Catalog's
+        // ProductRepositoryInterface below.
+        $this->container->set(WarehouseRepositoryInterface::class, function (Container $c) {
+            return new WarehouseRepository($c->get(PDO::class));
+        });
+        $this->container->set(InventoryItemRepositoryInterface::class, function (Container $c) {
+            return new InventoryItemRepository($c->get(PDO::class));
+        });
+        $this->container->set(StockReservationRepositoryInterface::class, function (Container $c) {
+            return new StockReservationRepository($c->get(PDO::class));
+        });
+        $this->container->set(StockMovementRepositoryInterface::class, function (Container $c) {
+            return new StockMovementRepository($c->get(PDO::class));
+        });
+        $this->container->set(InventoryServiceInterface::class, function (Container $c) {
+            return new InventoryService(
+                $c->get(InventoryItemRepositoryInterface::class),
+                $c->get(StockReservationRepositoryInterface::class),
+                $c->get(StockMovementRepositoryInterface::class),
+                $c->get(WarehouseRepositoryInterface::class),
+                $c->get(ProductRepositoryInterface::class),
+                $c->get(Logger::class)
+            );
+        });
+        $this->container->set(AdminInventoryController::class, function (Container $c) {
+            return new AdminInventoryController(
+                $c->get(InventoryServiceInterface::class),
+                $c->get(InventoryItemRepositoryInterface::class),
+                $c->get(WarehouseRepositoryInterface::class),
+                $c->get(ProductServiceInterface::class),
+                $c->get(UserServiceInterface::class),
+                $c->get(AuditLoggerInterface::class),
+                $c->get('config')
+            );
         });
 
         // Not-yet-migrated domains — unchanged from Phase 3, still bound
@@ -414,6 +469,11 @@ final class Kernel
         // matching -- documented on AdminCustomerController::show().
         $this->router->any('/admin/customers', AdminCustomerController::class, 'index');
         $this->router->any('/admin/customers/view', AdminCustomerController::class, 'show');
+
+        // Inventory domain — staff-only, guarded in handle() above. Same
+        // query-param routing convention as Customers.
+        $this->router->any('/admin/inventory', AdminInventoryController::class, 'index');
+        $this->router->any('/admin/inventory/adjust', AdminInventoryController::class, 'adjust');
     }
 
     private function notFoundResponse(): Response
