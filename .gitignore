@@ -33,3 +33,7 @@ dev/
 extras/
 lib/enchant/
 php.ini-*
+
+# Composer dependencies -- run `composer install` to generate
+/vendor/
+composer.phar
