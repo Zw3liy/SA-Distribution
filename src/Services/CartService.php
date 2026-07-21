@@ -3,20 +3,20 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domains\Catalog\Repositories\ProductRepositoryInterface;
 use App\Models\CartItem;
 use App\Repositories\CartRepository;
-use App\Repositories\ProductRepository;
 use InvalidArgumentException;
 
 class CartService
 {
-    /** @var ProductRepository */
+    /** @var ProductRepositoryInterface */
     private $productRepository;
 
     /** @var CartRepository */
     private $cartRepository;
 
-    public function __construct(ProductRepository $productRepository, CartRepository $cartRepository)
+    public function __construct(ProductRepositoryInterface $productRepository, CartRepository $cartRepository)
     {
         $this->productRepository = $productRepository;
         $this->cartRepository = $cartRepository;

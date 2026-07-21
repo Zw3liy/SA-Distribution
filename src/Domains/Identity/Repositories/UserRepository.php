@@ -182,4 +182,18 @@ class UserRepository implements UserRepositoryInterface
             return new User($row);
         }, $stmt->fetchAll());
     }
+
+    public function assignRole(int $userId, string $roleName): void
+    {
+        $roleStmt = $this->db->prepare('SELECT id FROM roles WHERE name = :name LIMIT 1');
+        $roleStmt->execute(['name' => $roleName]);
+        $roleId = $roleStmt->fetchColumn();
+
+        if ($roleId === false) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)');
+        $stmt->execute(['user_id' => $userId, 'role_id' => (int) $roleId]);
+    }
 }

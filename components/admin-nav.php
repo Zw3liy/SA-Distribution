@@ -13,6 +13,7 @@ declare(strict_types=1);
         <a class="brand" href="/admin">Admin — <?= esc($appConfig['name']); ?></a>
         <nav class="site-nav admin-nav" aria-label="Admin navigation">
             <a href="/admin">Dashboard</a>
+            <a href="/admin/catalog/products">Catalog</a>
             <a href="/admin/staff">Staff</a>
             <a href="/admin/settings">Settings</a>
             <a href="/admin/feature-flags">Feature Flags</a>

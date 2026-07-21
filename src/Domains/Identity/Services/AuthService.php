@@ -42,7 +42,9 @@ class AuthService implements AuthServiceInterface
             throw new RuntimeException('Unable to hash password.');
         }
 
-        return $this->userRepository->create([
+        $accountKind = $data['account_kind'] ?? 'customer';
+
+        $id = $this->userRepository->create([
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'company_name' => $data['company_name'] ?? null,
@@ -53,8 +55,20 @@ class AuthService implements AuthServiceInterface
             'is_verified' => 0,
             'notifications_marketing' => $data['notifications_marketing'] ?? 0,
             'notifications_updates' => $data['notifications_updates'] ?? 1,
-            'account_kind' => $data['account_kind'] ?? 'customer',
+            'account_kind' => $accountKind,
         ]);
+
+        // Every staff account gets the baseline 'staff' RBAC role on
+        // creation, so permission-gated admin screens (Catalog's
+        // AdminProductController is the first real consumer) work
+        // immediately without a separate manual role-assignment step.
+        // Silently a no-op if the 'staff' role hasn't been seeded yet
+        // in a given environment (see UserRepositoryInterface::assignRole).
+        if ($accountKind === 'staff') {
+            $this->userRepository->assignRole($id, 'staff');
+        }
+
+        return $id;
     }
 
     public function authenticate(string $email, string $password, string $ip): User

@@ -8,7 +8,6 @@ use App\Container\Container;
 use App\Controllers\AccountController;
 use App\Controllers\CartController;
 use App\Controllers\HomeController;
-use App\Controllers\ProductController;
 use App\Controllers\QuoteController;
 use App\Controllers\WishlistController;
 use App\Database\Database;
@@ -29,6 +28,16 @@ use App\Domains\Administration\Services\FeatureFlagService;
 use App\Domains\Administration\Services\FeatureFlagServiceInterface;
 use App\Domains\Administration\Services\SettingsService;
 use App\Domains\Administration\Services\SettingsServiceInterface;
+use App\Domains\Catalog\Controllers\AdminProductController;
+use App\Domains\Catalog\Controllers\ProductController;
+use App\Domains\Catalog\Repositories\ProductRepository;
+use App\Domains\Catalog\Repositories\ProductRepositoryInterface;
+use App\Domains\Catalog\Repositories\TaxClassRepository;
+use App\Domains\Catalog\Repositories\TaxClassRepositoryInterface;
+use App\Domains\Catalog\Services\ProductService;
+use App\Domains\Catalog\Services\ProductServiceInterface;
+use App\Domains\Catalog\Services\TaxClassService;
+use App\Domains\Catalog\Services\TaxClassServiceInterface;
 use App\Domains\Identity\Controllers\AuthController;
 use App\Domains\Identity\Repositories\ApiCredentialRepository;
 use App\Domains\Identity\Repositories\ApiCredentialRepositoryInterface;
@@ -42,10 +51,8 @@ use App\Domains\Identity\Services\UserService;
 use App\Domains\Identity\Services\UserServiceInterface;
 use App\Logging\Logger;
 use App\Repositories\CartRepository;
-use App\Repositories\ProductRepository;
 use App\Repositories\QuoteRepository;
 use App\Services\CartService;
-use App\Services\ProductService;
 use App\Services\QuoteService;
 use App\Support\View;
 use ErrorException;
@@ -127,13 +134,13 @@ final class Kernel
      *
      * The account_kind check is the coarse gate (defense layer 1);
      * per-screen permission checks (defense layer 2) are enforced
-     * inside each Administration controller action via
-     * UserServiceInterface::hasPermission(), since the specific
-     * permission required differs per screen (staff.manage,
-     * settings.manage, feature_flags.manage, audit_log.view) and the
-     * permission catalog itself is still being seeded -- recorded as a
-     * near-term follow-up in the completion report rather than silently
-     * skipped.
+     * inside each admin controller action via
+     * UserServiceInterface::hasPermission() -- Catalog's
+     * AdminProductController is the first controller to actually
+     * enforce this second layer, now that the permission catalog has
+     * been seeded (docs/specs/03-catalog.md §19 migration; see also
+     * docs/reports/PHASE5-ADMINISTRATION-COMPLETION-REPORT.md, which
+     * flagged the empty permission catalog as a deferred risk).
      */
     private function isAdminRoute(string $path): bool
     {
@@ -245,8 +252,7 @@ final class Kernel
 
         // Administration domain — bound by interface, per
         // docs/specs/02-administration.md §5/§6. AuditLoggerInterface is
-        // the one interface every other domain (starting with Identity's
-        // AuthController) is expected to take a dependency on.
+        // the one interface every other domain is expected to depend on.
         $this->container->set(AuditLogRepositoryInterface::class, function (Container $c) {
             return new AuditLogRepository($c->get(PDO::class));
         });
@@ -281,13 +287,31 @@ final class Kernel
             return new StaffController($c->get(AuthServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
         });
 
-        // Not-yet-migrated domains — unchanged from Phase 3, still bound
-        // by concrete class. AccountController depends on Identity's
-        // UserServiceInterface (a cross-domain service dependency, which
-        // is fine — see docs/specs/00-index.md conventions).
-        $this->container->set(ProductRepository::class, function (Container $c) {
+        // Catalog domain — bound by interface, per docs/specs/03-catalog.md §5/§6.
+        $this->container->set(ProductRepositoryInterface::class, function (Container $c) {
             return new ProductRepository($c->get(PDO::class));
         });
+        $this->container->set(TaxClassRepositoryInterface::class, function (Container $c) {
+            return new TaxClassRepository($c->get(PDO::class));
+        });
+        $this->container->set(ProductServiceInterface::class, function (Container $c) {
+            return new ProductService($c->get(ProductRepositoryInterface::class));
+        });
+        $this->container->set(TaxClassServiceInterface::class, function (Container $c) {
+            return new TaxClassService($c->get(TaxClassRepositoryInterface::class));
+        });
+        $this->container->set(ProductController::class, function (Container $c) {
+            return new ProductController($c->get(ProductServiceInterface::class), $c->get('config'));
+        });
+        $this->container->set(AdminProductController::class, function (Container $c) {
+            return new AdminProductController($c->get(ProductServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+
+        // Not-yet-migrated domains — unchanged from Phase 3, still bound
+        // by concrete class. CartController/CartService depend on
+        // Catalog's ProductServiceInterface/ProductRepositoryInterface
+        // (a cross-domain dependency, which is fine — see
+        // docs/specs/00-index.md conventions).
         $this->container->set(CartRepository::class, function (Container $c) {
             return new CartRepository($c->get(PDO::class));
         });
@@ -295,11 +319,8 @@ final class Kernel
             return new QuoteRepository($c->get(PDO::class));
         });
 
-        $this->container->set(ProductService::class, function (Container $c) {
-            return new ProductService($c->get(ProductRepository::class));
-        });
         $this->container->set(CartService::class, function (Container $c) {
-            return new CartService($c->get(ProductRepository::class), $c->get(CartRepository::class));
+            return new CartService($c->get(ProductRepositoryInterface::class), $c->get(CartRepository::class));
         });
         $this->container->set(QuoteService::class, function (Container $c) {
             return new QuoteService($c->get(QuoteRepository::class));
@@ -312,10 +333,7 @@ final class Kernel
             return new AccountController($c->get(UserServiceInterface::class), $c->get('config'));
         });
         $this->container->set(CartController::class, function (Container $c) {
-            return new CartController($c->get(CartService::class), $c->get(ProductService::class), $c->get('config'));
-        });
-        $this->container->set(ProductController::class, function (Container $c) {
-            return new ProductController($c->get(ProductService::class), $c->get('config'));
+            return new CartController($c->get(CartService::class), $c->get(ProductServiceInterface::class), $c->get('config'));
         });
         $this->container->set(QuoteController::class, function (Container $c) {
             return new QuoteController($c->get(QuoteService::class), $c->get(CartService::class), $c->get('config'));
@@ -354,6 +372,9 @@ final class Kernel
         $this->router->any('/admin/settings', SystemSettingController::class, 'index');
         $this->router->any('/admin/feature-flags', FeatureFlagController::class, 'index');
         $this->router->get('/admin/audit-log', AuditLogController::class, 'index');
+
+        // Catalog domain — staff-only, guarded in handle() above.
+        $this->router->any('/admin/catalog/products', AdminProductController::class, 'index');
     }
 
     private function notFoundResponse(): Response

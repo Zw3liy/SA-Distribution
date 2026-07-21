@@ -1,17 +1,17 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers;
+namespace App\Domains\Catalog\Controllers;
 
 use App\Config\Config;
+use App\Domains\Catalog\Services\ProductServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
-use App\Services\ProductService;
 use App\Support\View;
 
 class ProductController
 {
-    /** @var ProductService */
+    /** @var ProductServiceInterface */
     private $service;
 
     /** @var Config */
@@ -20,14 +20,14 @@ class ProductController
     /** @var int */
     private $perPage = 12;
 
-    public function __construct(ProductService $service, Config $config)
+    public function __construct(ProductServiceInterface $service, Config $config)
     {
         $this->service = $service;
         $this->config = $config;
     }
 
     /**
-     * Original business logic, unchanged.
+     * Original business logic, unchanged (docs/specs/03-catalog.md §19).
      */
     public function handleRequest(): array
     {

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * @var array $appConfig
- * @var \App\Models\Product $product
+ * @var \App\Domains\Catalog\Models\Product $product
  * @var array $productImages
  * @var array $relatedProducts
  * @var array $recentlyViewed
@@ -347,5 +347,3 @@ $financeTerm = 36;
     </main>
     <?php include APP_BASE_PATH . '/components/footer.php'; ?>
     <script src="js/main.js"></script>
-</body>
-</html>

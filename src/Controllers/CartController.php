@@ -4,11 +4,11 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Config\Config;
+use App\Domains\Catalog\Services\ProductServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
 use App\Models\CartItem;
 use App\Services\CartService;
-use App\Services\ProductService;
 use App\Support\View;
 use Throwable;
 
@@ -17,13 +17,13 @@ class CartController
     /** @var CartService */
     private $cartService;
 
-    /** @var ProductService */
+    /** @var ProductServiceInterface */
     private $productService;
 
     /** @var Config */
     private $config;
 
-    public function __construct(CartService $cartService, ProductService $productService, Config $config)
+    public function __construct(CartService $cartService, ProductServiceInterface $productService, Config $config)
     {
         $this->cartService = $cartService;
         $this->productService = $productService;

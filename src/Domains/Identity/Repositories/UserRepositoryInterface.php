@@ -32,4 +32,13 @@ interface UserRepositoryInterface
      * @return User[]
      */
     public function findByAccountKind(string $accountKind): array;
+
+    /**
+     * Idempotent by design (a user assigned the same role twice is a
+     * no-op, not an error) -- silently does nothing if the named role
+     * doesn't exist yet, since not every environment seeds every role
+     * at the same time (docs/specs/03-catalog.md §19 seeds the 'staff'
+     * role; earlier domains didn't need this method at all).
+     */
+    public function assignRole(int $userId, string $roleName): void;
 }
