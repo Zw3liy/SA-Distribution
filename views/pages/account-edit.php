@@ -4,6 +4,7 @@ declare(strict_types=1);
 /**
  * @var array $appConfig
  * @var \App\Domains\Identity\Models\User $user
+ * @var \App\Domains\Customers\Models\Address[] $addresses
  * @var string $error
  * @var string $flashMessage
  */
@@ -60,8 +61,4 @@ declare(strict_types=1);
                 <button class="btn-primary" type="submit">Save changes</button>
             </form>
 
-            <p class="auth-helper"><a href="account-dashboard.php">Back to dashboard</a></p>
-        </section>
-    </main>
-</body>
-</html>
+            <p class="auth-helper"><a href="account-dashboard.php">Back to dashbo

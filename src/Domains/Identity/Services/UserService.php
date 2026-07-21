@@ -22,6 +22,11 @@ class UserService implements UserServiceInterface
         return $this->userRepository->findById($id);
     }
 
+    public function getUserByEmail(string $email): ?User
+    {
+        return $this->userRepository->findByEmail($email);
+    }
+
     public function updateProfile(int $userId, array $data): bool
     {
         $allowed = ['first_name', 'last_name', 'company_name', 'phone', 'password_hash', 'notifications_marketing', 'notifications_updates'];

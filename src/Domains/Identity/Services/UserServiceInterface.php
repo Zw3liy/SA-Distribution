@@ -9,6 +9,8 @@ interface UserServiceInterface
 {
     public function getUserById(int $id): ?User;
 
+    public function getUserByEmail(string $email): ?User;
+
     public function updateProfile(int $userId, array $data): bool;
 
     public function hasPermission(User $user, string $permission): bool;

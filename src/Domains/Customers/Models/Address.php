@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Models;
+namespace App\Domains\Customers\Models;
 
 class Address
 {
@@ -9,6 +9,17 @@ class Address
     public $id;
 
     /** @var int */
+    public $customerId;
+
+    /**
+     * Deprecated compatibility field -- addresses were re-parented from
+     * users to customers in this domain's migration
+     * (docs/specs/04-customers.md §3/§19). Kept nullable, read-only, for
+     * one release rather than dropped in the same pass that introduces
+     * customer_id.
+     *
+     * @var int|null
+     */
     public $userId;
 
     /** @var string */
@@ -47,7 +58,8 @@ class Address
     public function __construct(array $data)
     {
         $this->id = (int) $data['id'];
-        $this->userId = (int) $data['user_id'];
+        $this->customerId = isset($data['customer_id']) ? (int) $data['customer_id'] : 0;
+        $this->userId = isset($data['user_id']) ? (int) $data['user_id'] : null;
         $this->label = (string) $data['label'];
         $this->isDefault = (bool) $data['is_default'];
         $this->addressLine1 = (string) $data['address_line_1'];

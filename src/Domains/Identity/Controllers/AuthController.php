@@ -5,12 +5,14 @@ namespace App\Domains\Identity\Controllers;
 
 use App\Config\Config;
 use App\Domains\Administration\Services\AuditLoggerInterface;
+use App\Domains\Customers\Services\CustomerServiceInterface;
 use App\Domains\Identity\Exceptions\AccountInactiveException;
 use App\Domains\Identity\Exceptions\AccountLockedException;
 use App\Domains\Identity\Exceptions\DuplicateEmailException;
 use App\Domains\Identity\Exceptions\InvalidCredentialsException;
 use App\Domains\Identity\Models\User;
 use App\Domains\Identity\Services\AuthServiceInterface;
+use App\Domains\Identity\Services\UserServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
 use App\Support\View;
@@ -26,13 +28,26 @@ class AuthController
     /** @var AuditLoggerInterface */
     private $auditLogger;
 
+    /** @var CustomerServiceInterface */
+    private $customerService;
+
+    /** @var UserServiceInterface */
+    private $userService;
+
     /** @var Config */
     private $config;
 
-    public function __construct(AuthServiceInterface $authService, AuditLoggerInterface $auditLogger, Config $config)
-    {
+    public function __construct(
+        AuthServiceInterface $authService,
+        AuditLoggerInterface $auditLogger,
+        CustomerServiceInterface $customerService,
+        UserServiceInterface $userService,
+        Config $config
+    ) {
         $this->authService = $authService;
         $this->auditLogger = $auditLogger;
+        $this->customerService = $customerService;
+        $this->userService = $userService;
         $this->config = $config;
     }
 
@@ -78,6 +93,18 @@ class AuthController
         // meaningful calls into Administration's audit log, via the one
         // narrow interface it exposes for this purpose.
         $this->auditLogger->record('identity', 'user.registered', 'user', $userId, [], ['email' => $email]);
+
+        // Customers listens for "a user registered" to auto-create a
+        // b2c Customer record (docs/specs/04-customers.md §10) --
+        // implemented as a direct, synchronous controller-level call
+        // rather than a real event-bus subscription, since no event bus
+        // exists yet anywhere in this platform (see Catalog's Event DTOs
+        // for the same situation). Self-registration always creates a
+        // b2c account; B2B accounts are staff-managed only, per spec §19.
+        $user = $this->userService->getUserById($userId);
+        if ($user !== null) {
+            $this->customerService->createForUser($user, ['account_type' => 'b2c']);
+        }
 
         setFlashMessage('Registration successful. Please check your email to verify your account.');
     }

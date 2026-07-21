@@ -5,11 +5,9 @@ namespace App\Http;
 
 use App\Config\Config;
 use App\Container\Container;
-use App\Controllers\AccountController;
 use App\Controllers\CartController;
 use App\Controllers\HomeController;
 use App\Controllers\QuoteController;
-use App\Controllers\WishlistController;
 use App\Database\Database;
 use App\Domains\Administration\Controllers\AdminDashboardController;
 use App\Domains\Administration\Controllers\AuditLogController;
@@ -38,6 +36,17 @@ use App\Domains\Catalog\Services\ProductService;
 use App\Domains\Catalog\Services\ProductServiceInterface;
 use App\Domains\Catalog\Services\TaxClassService;
 use App\Domains\Catalog\Services\TaxClassServiceInterface;
+use App\Domains\Customers\Controllers\AccountController;
+use App\Domains\Customers\Controllers\AdminCustomerController;
+use App\Domains\Customers\Controllers\WishlistController;
+use App\Domains\Customers\Repositories\AddressRepository;
+use App\Domains\Customers\Repositories\AddressRepositoryInterface;
+use App\Domains\Customers\Repositories\CustomerRepository;
+use App\Domains\Customers\Repositories\CustomerRepositoryInterface;
+use App\Domains\Customers\Services\AddressService;
+use App\Domains\Customers\Services\AddressServiceInterface;
+use App\Domains\Customers\Services\CustomerService;
+use App\Domains\Customers\Services\CustomerServiceInterface;
 use App\Domains\Identity\Controllers\AuthController;
 use App\Domains\Identity\Repositories\ApiCredentialRepository;
 use App\Domains\Identity\Repositories\ApiCredentialRepositoryInterface;
@@ -136,9 +145,10 @@ final class Kernel
      * per-screen permission checks (defense layer 2) are enforced
      * inside each admin controller action via
      * UserServiceInterface::hasPermission() -- Catalog's
-     * AdminProductController is the first controller to actually
-     * enforce this second layer, now that the permission catalog has
-     * been seeded (docs/specs/03-catalog.md §19 migration; see also
+     * AdminProductController and Customers' AdminCustomerController
+     * both enforce this second layer, now that the permission catalog
+     * has been seeded (docs/specs/03-catalog.md §19,
+     * docs/specs/04-customers.md §19 migrations; see also
      * docs/reports/PHASE5-ADMINISTRATION-COMPLETION-REPORT.md, which
      * flagged the empty permission catalog as a deferred risk).
      */
@@ -246,8 +256,13 @@ final class Kernel
         $this->container->set(ApiCredentialServiceInterface::class, function (Container $c) {
             return new ApiCredentialService($c->get(ApiCredentialRepositoryInterface::class), $c->get(UserRepositoryInterface::class));
         });
+        // AuthController now also depends on Customers' CustomerServiceInterface
+        // (docs/specs/04-customers.md §10 -- auto-creates a b2c Customer on
+        // self-registration, wired as a direct synchronous call since no
+        // event bus exists in this platform) and UserServiceInterface (to
+        // reload the freshly-registered User so it can be passed through).
         $this->container->set(AuthController::class, function (Container $c) {
-            return new AuthController($c->get(AuthServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+            return new AuthController($c->get(AuthServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get(CustomerServiceInterface::class), $c->get(UserServiceInterface::class), $c->get('config'));
         });
 
         // Administration domain — bound by interface, per
@@ -307,6 +322,29 @@ final class Kernel
             return new AdminProductController($c->get(ProductServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
         });
 
+        // Customers domain — bound by interface, per docs/specs/04-customers.md §5/§6.
+        $this->container->set(CustomerRepositoryInterface::class, function (Container $c) {
+            return new CustomerRepository($c->get(PDO::class));
+        });
+        $this->container->set(AddressRepositoryInterface::class, function (Container $c) {
+            return new AddressRepository($c->get(PDO::class));
+        });
+        $this->container->set(CustomerServiceInterface::class, function (Container $c) {
+            return new CustomerService($c->get(CustomerRepositoryInterface::class));
+        });
+        $this->container->set(AddressServiceInterface::class, function (Container $c) {
+            return new AddressService($c->get(AddressRepositoryInterface::class));
+        });
+        $this->container->set(AccountController::class, function (Container $c) {
+            return new AccountController($c->get(UserServiceInterface::class), $c->get(CustomerServiceInterface::class), $c->get(AddressServiceInterface::class), $c->get('config'));
+        });
+        $this->container->set(WishlistController::class, function (Container $c) {
+            return new WishlistController($c->get('config'));
+        });
+        $this->container->set(AdminCustomerController::class, function (Container $c) {
+            return new AdminCustomerController($c->get(CustomerServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+
         // Not-yet-migrated domains — unchanged from Phase 3, still bound
         // by concrete class. CartController/CartService depend on
         // Catalog's ProductServiceInterface/ProductRepositoryInterface
@@ -329,17 +367,11 @@ final class Kernel
         $this->container->set(HomeController::class, function (Container $c) {
             return new HomeController($c->get('config'));
         });
-        $this->container->set(AccountController::class, function (Container $c) {
-            return new AccountController($c->get(UserServiceInterface::class), $c->get('config'));
-        });
         $this->container->set(CartController::class, function (Container $c) {
             return new CartController($c->get(CartService::class), $c->get(ProductServiceInterface::class), $c->get('config'));
         });
         $this->container->set(QuoteController::class, function (Container $c) {
             return new QuoteController($c->get(QuoteService::class), $c->get(CartService::class), $c->get('config'));
-        });
-        $this->container->set(WishlistController::class, function (Container $c) {
-            return new WishlistController($c->get('config'));
         });
     }
 
@@ -375,6 +407,13 @@ final class Kernel
 
         // Catalog domain — staff-only, guarded in handle() above.
         $this->router->any('/admin/catalog/products', AdminProductController::class, 'index');
+
+        // Customers domain — staff-only, guarded in handle() above. The
+        // /admin/customers/view?id= query-param routing (rather than a
+        // path parameter) is because Router only supports exact-path
+        // matching -- documented on AdminCustomerController::show().
+        $this->router->any('/admin/customers', AdminCustomerController::class, 'index');
+        $this->router->any('/admin/customers/view', AdminCustomerController::class, 'show');
     }
 
     private function notFoundResponse(): Response

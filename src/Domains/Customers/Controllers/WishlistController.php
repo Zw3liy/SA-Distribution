@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers;
+namespace App\Domains\Customers\Controllers;
 
 use App\Config\Config;
 use App\Http\Request;
@@ -13,7 +13,10 @@ use App\Support\View;
  * controller class of its own — it operated purely on the session
  * wishlist via global helper functions. Wrapped in a thin controller
  * here purely for structural consistency with the rest of the app; no
- * new behavior was introduced.
+ * new behavior was introduced. Wishlist remains session-array-backed,
+ * not promoted to a database table in this phase
+ * (docs/specs/04-customers.md §4/§19/§20 -- a real, flagged gap, not
+ * silently dropped).
  */
 class WishlistController
 {
