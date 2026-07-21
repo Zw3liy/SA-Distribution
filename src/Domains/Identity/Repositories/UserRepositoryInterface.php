@@ -20,4 +20,16 @@ interface UserRepositoryInterface
     public function recordLoginAttempt(string $email, string $ip, bool $successful): void;
 
     public function recentFailedAttempts(string $email, string $ip, int $windowSeconds): int;
+
+    public function userHasPermission(int $userId, string $permissionName): bool;
+
+    /**
+     * @return string[]
+     */
+    public function permissionsForUser(int $userId): array;
+
+    /**
+     * @return User[]
+     */
+    public function findByAccountKind(string $accountKind): array;
 }

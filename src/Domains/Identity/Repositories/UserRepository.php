@@ -98,6 +98,11 @@ class UserRepository implements UserRepositoryInterface
             $params['notifications_updates'] = $data['notifications_updates'];
         }
 
+        if (isset($data['is_active'])) {
+            $fields[] = 'is_active = :is_active';
+            $params['is_active'] = $data['is_active'];
+        }
+
         if (empty($fields)) {
             return false;
         }
@@ -140,5 +145,41 @@ class UserRepository implements UserRepositoryInterface
         $stmt->execute();
 
         return (int) $stmt->fetchColumn();
+    }
+
+    public function userHasPermission(int $userId, string $permissionName): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM user_roles ur
+             INNER JOIN role_permissions rp ON rp.role_id = ur.role_id
+             INNER JOIN permissions p ON p.id = rp.permission_id
+             WHERE ur.user_id = :user_id AND p.name = :permission_name'
+        );
+        $stmt->execute(['user_id' => $userId, 'permission_name' => $permissionName]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function permissionsForUser(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT DISTINCT p.name FROM user_roles ur
+             INNER JOIN role_permissions rp ON rp.role_id = ur.role_id
+             INNER JOIN permissions p ON p.id = rp.permission_id
+             WHERE ur.user_id = :user_id'
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    public function findByAccountKind(string $accountKind): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE account_kind = :account_kind ORDER BY created_at DESC');
+        $stmt->execute(['account_kind' => $accountKind]);
+
+        return array_map(static function (array $row): User {
+            return new User($row);
+        }, $stmt->fetchAll());
     }
 }

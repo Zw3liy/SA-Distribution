@@ -12,6 +12,23 @@ use App\Controllers\ProductController;
 use App\Controllers\QuoteController;
 use App\Controllers\WishlistController;
 use App\Database\Database;
+use App\Domains\Administration\Controllers\AdminDashboardController;
+use App\Domains\Administration\Controllers\AuditLogController;
+use App\Domains\Administration\Controllers\FeatureFlagController;
+use App\Domains\Administration\Controllers\StaffController;
+use App\Domains\Administration\Controllers\SystemSettingController;
+use App\Domains\Administration\Repositories\AuditLogRepository;
+use App\Domains\Administration\Repositories\AuditLogRepositoryInterface;
+use App\Domains\Administration\Repositories\FeatureFlagRepository;
+use App\Domains\Administration\Repositories\FeatureFlagRepositoryInterface;
+use App\Domains\Administration\Repositories\SystemSettingRepository;
+use App\Domains\Administration\Repositories\SystemSettingRepositoryInterface;
+use App\Domains\Administration\Services\AuditLogger;
+use App\Domains\Administration\Services\AuditLoggerInterface;
+use App\Domains\Administration\Services\FeatureFlagService;
+use App\Domains\Administration\Services\FeatureFlagServiceInterface;
+use App\Domains\Administration\Services\SettingsService;
+use App\Domains\Administration\Services\SettingsServiceInterface;
 use App\Domains\Identity\Controllers\AuthController;
 use App\Domains\Identity\Repositories\ApiCredentialRepository;
 use App\Domains\Identity\Repositories\ApiCredentialRepositoryInterface;
@@ -84,6 +101,10 @@ final class Kernel
                 return $this->notFoundResponse();
             }
 
+            if ($this->isAdminRoute($request->path()) && !$this->passesAdminGuard()) {
+                return $this->forbiddenResponse();
+            }
+
             [$controllerClass, $action] = $route;
             $controller = $this->container->get($controllerClass);
 
@@ -93,6 +114,35 @@ final class Kernel
 
             return $this->errorResponse($exception, $request);
         }
+    }
+
+    /**
+     * Staff-only route guard for the /admin/* namespace, per
+     * docs/specs/02-administration.md §16: "defense in depth --
+     * account_kind = 'staff' AND the specific permission for the
+     * screen, not either/or." The Router only does exact-path matching
+     * with no concept of route groups or middleware, so this check runs
+     * here, after a route is matched but before the controller is
+     * invoked -- the one place every request funnels through.
+     *
+     * The account_kind check is the coarse gate (defense layer 1);
+     * per-screen permission checks (defense layer 2) are enforced
+     * inside each Administration controller action via
+     * UserServiceInterface::hasPermission(), since the specific
+     * permission required differs per screen (staff.manage,
+     * settings.manage, feature_flags.manage, audit_log.view) and the
+     * permission catalog itself is still being seeded -- recorded as a
+     * near-term follow-up in the completion report rather than silently
+     * skipped.
+     */
+    private function isAdminRoute(string $path): bool
+    {
+        return $path === '/admin' || str_starts_with($path, '/admin/');
+    }
+
+    private function passesAdminGuard(): bool
+    {
+        return isAuthenticated() && isStaffAccount();
     }
 
     /**
@@ -165,6 +215,10 @@ final class Kernel
             return $this->config;
         });
 
+        $this->container->set(Logger::class, function () {
+            return $this->logger;
+        });
+
         $this->container->set(PDO::class, function () {
             return (new Database($this->config->get('db')))->getConnection();
         });
@@ -186,7 +240,45 @@ final class Kernel
             return new ApiCredentialService($c->get(ApiCredentialRepositoryInterface::class), $c->get(UserRepositoryInterface::class));
         });
         $this->container->set(AuthController::class, function (Container $c) {
-            return new AuthController($c->get(AuthServiceInterface::class), $c->get('config'));
+            return new AuthController($c->get(AuthServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+
+        // Administration domain — bound by interface, per
+        // docs/specs/02-administration.md §5/§6. AuditLoggerInterface is
+        // the one interface every other domain (starting with Identity's
+        // AuthController) is expected to take a dependency on.
+        $this->container->set(AuditLogRepositoryInterface::class, function (Container $c) {
+            return new AuditLogRepository($c->get(PDO::class));
+        });
+        $this->container->set(SystemSettingRepositoryInterface::class, function (Container $c) {
+            return new SystemSettingRepository($c->get(PDO::class));
+        });
+        $this->container->set(FeatureFlagRepositoryInterface::class, function (Container $c) {
+            return new FeatureFlagRepository($c->get(PDO::class));
+        });
+        $this->container->set(AuditLoggerInterface::class, function (Container $c) {
+            return new AuditLogger($c->get(AuditLogRepositoryInterface::class), $c->get(Logger::class));
+        });
+        $this->container->set(SettingsServiceInterface::class, function (Container $c) {
+            return new SettingsService($c->get(SystemSettingRepositoryInterface::class));
+        });
+        $this->container->set(FeatureFlagServiceInterface::class, function (Container $c) {
+            return new FeatureFlagService($c->get(FeatureFlagRepositoryInterface::class));
+        });
+        $this->container->set(AdminDashboardController::class, function (Container $c) {
+            return new AdminDashboardController($c->get('config'));
+        });
+        $this->container->set(AuditLogController::class, function (Container $c) {
+            return new AuditLogController($c->get(AuditLogRepositoryInterface::class), $c->get('config'));
+        });
+        $this->container->set(SystemSettingController::class, function (Container $c) {
+            return new SystemSettingController($c->get(SettingsServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+        $this->container->set(FeatureFlagController::class, function (Container $c) {
+            return new FeatureFlagController($c->get(FeatureFlagServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
+        });
+        $this->container->set(StaffController::class, function (Container $c) {
+            return new StaffController($c->get(AuthServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
         });
 
         // Not-yet-migrated domains — unchanged from Phase 3, still bound
@@ -255,6 +347,13 @@ final class Kernel
 
         $this->router->any('/quote-request.php', QuoteController::class, 'sessionRequest');
         $this->router->post('/quote-api.php', QuoteController::class, 'api');
+
+        // Administration domain — staff-only, guarded in handle() above.
+        $this->router->get('/admin', AdminDashboardController::class, 'index');
+        $this->router->any('/admin/staff', StaffController::class, 'index');
+        $this->router->any('/admin/settings', SystemSettingController::class, 'index');
+        $this->router->any('/admin/feature-flags', FeatureFlagController::class, 'index');
+        $this->router->get('/admin/audit-log', AuditLogController::class, 'index');
     }
 
     private function notFoundResponse(): Response
@@ -262,6 +361,13 @@ final class Kernel
         $html = View::render('pages/404', ['appConfig' => $this->config->all()]);
 
         return Response::notFound($html);
+    }
+
+    private function forbiddenResponse(): Response
+    {
+        $html = View::render('pages/403', ['appConfig' => $this->config->all()]);
+
+        return Response::forbidden($html);
     }
 
     private function errorResponse(Throwable $exception, Request $request): Response

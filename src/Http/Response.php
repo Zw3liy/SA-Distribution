@@ -50,6 +50,11 @@ final class Response
         return new self($body, 404, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
+    public static function forbidden(string $body): self
+    {
+        return new self($body, 403, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
     public function send(): void
     {
         if (!headers_sent()) {

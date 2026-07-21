@@ -61,3 +61,17 @@ if (!function_exists('requireGuest')) {
         }
     }
 }
+
+if (!function_exists('currentAccountKind')) {
+    function currentAccountKind(): string
+    {
+        return $_SESSION['account_kind'] ?? 'customer';
+    }
+}
+
+if (!function_exists('isStaffAccount')) {
+    function isStaffAccount(): bool
+    {
+        return isAuthenticated() && currentAccountKind() === 'staff';
+    }
+}

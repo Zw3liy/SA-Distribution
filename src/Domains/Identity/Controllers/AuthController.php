@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Domains\Identity\Controllers;
 
 use App\Config\Config;
+use App\Domains\Administration\Services\AuditLoggerInterface;
 use App\Domains\Identity\Exceptions\AccountInactiveException;
 use App\Domains\Identity\Exceptions\AccountLockedException;
 use App\Domains\Identity\Exceptions\DuplicateEmailException;
@@ -22,12 +23,16 @@ class AuthController
     /** @var AuthServiceInterface */
     private $authService;
 
+    /** @var AuditLoggerInterface */
+    private $auditLogger;
+
     /** @var Config */
     private $config;
 
-    public function __construct(AuthServiceInterface $authService, Config $config)
+    public function __construct(AuthServiceInterface $authService, AuditLoggerInterface $auditLogger, Config $config)
     {
         $this->authService = $authService;
+        $this->auditLogger = $auditLogger;
         $this->config = $config;
     }
 
@@ -57,7 +62,7 @@ class AuthController
             throw new InvalidArgumentException('Please complete all required registration fields.');
         }
 
-        $this->authService->register([
+        $userId = $this->authService->register([
             'first_name' => $firstName,
             'last_name' => $lastName,
             'company_name' => $companyName,
@@ -67,6 +72,12 @@ class AuthController
             'notifications_marketing' => (int) filter_input(INPUT_POST, 'notifications_marketing', FILTER_VALIDATE_BOOLEAN),
             'notifications_updates' => (int) filter_input(INPUT_POST, 'notifications_updates', FILTER_VALIDATE_BOOLEAN),
         ]);
+
+        // Working example other domains should copy (docs/specs/02-administration.md
+        // §19) -- every write path that creates/changes something
+        // meaningful calls into Administration's audit log, via the one
+        // narrow interface it exposes for this purpose.
+        $this->auditLogger->record('identity', 'user.registered', 'user', $userId, [], ['email' => $email]);
 
         setFlashMessage('Registration successful. Please check your email to verify your account.');
     }
@@ -97,7 +108,10 @@ class AuthController
         $_SESSION['user_id'] = $user->id;
         $_SESSION['user_email'] = $user->email;
         $_SESSION['user_name'] = $user->getFullName();
-        $_SESSION['user_role'] = 'customer';
+        $_SESSION['user_role'] = $user->accountKind;
+        $_SESSION['account_kind'] = $user->accountKind;
+
+        $this->auditLogger->record('identity', 'user.logged_in', 'user', $user->id, [], ['account_kind' => $user->accountKind]);
 
         return $user;
     }
@@ -107,7 +121,7 @@ class AuthController
      */
     public function handleLogout(): void
     {
-        unset($_SESSION['user_id'], $_SESSION['user_email'], $_SESSION['user_name'], $_SESSION['user_role']);
+        unset($_SESSION['user_id'], $_SESSION['user_email'], $_SESSION['user_name'], $_SESSION['user_role'], $_SESSION['account_kind']);
         session_regenerate_id(true);
         setFlashMessage('You have been logged out successfully.');
     }

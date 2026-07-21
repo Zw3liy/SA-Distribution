@@ -37,4 +37,24 @@ class UserService implements UserServiceInterface
 
         return $this->userRepository->update($userId, $payload);
     }
+
+    public function hasPermission(User $user, string $permission): bool
+    {
+        return $this->userRepository->userHasPermission($user->id, $permission);
+    }
+
+    public function permissionsFor(User $user): array
+    {
+        return $this->userRepository->permissionsForUser($user->id);
+    }
+
+    public function listByAccountKind(string $accountKind): array
+    {
+        return $this->userRepository->findByAccountKind($accountKind);
+    }
+
+    public function setActive(int $userId, bool $isActive): bool
+    {
+        return $this->userRepository->update($userId, ['is_active' => $isActive ? 1 : 0]);
+    }
 }

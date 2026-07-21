@@ -905,3 +905,16 @@ body {
     gap: 0.5rem;
   }
 }
+
+/* Admin portal (Phase 5, Administration domain) — reuses existing
+   layout primitives (.container, .site-header, .cart-table, .badge,
+   .filters-grid, .btn-*) rather than introducing a parallel design
+   system. Only genuinely new states are added below. */
+.badge-active {
+    background-color: #16a34a;
+    color: #ffffff;
+}
+.badge-inactive {
+    background-color: #9ca3af;
+    color: #ffffff;
+}
