@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Repositories;
+namespace App\Domains\Identity\Repositories;
 
-use App\Models\User;
+use App\Domains\Identity\Models\User;
 use PDO;
 
-class UserRepository
+class UserRepository implements UserRepositoryInterface
 {
     /** @var PDO */
     private $db;
@@ -37,8 +37,8 @@ class UserRepository
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO users (first_name, last_name, company_name, email, phone, password_hash, is_active, is_verified, notifications_marketing, notifications_updates, created_at, updated_at)
-             VALUES (:first_name, :last_name, :company_name, :email, :phone, :password_hash, :is_active, :is_verified, :notifications_marketing, :notifications_updates, NOW(), NOW())'
+            'INSERT INTO users (first_name, last_name, company_name, email, phone, password_hash, is_active, is_verified, notifications_marketing, notifications_updates, account_kind, created_at, updated_at)
+             VALUES (:first_name, :last_name, :company_name, :email, :phone, :password_hash, :is_active, :is_verified, :notifications_marketing, :notifications_updates, :account_kind, NOW(), NOW())'
         );
 
         $stmt->execute([
@@ -52,6 +52,7 @@ class UserRepository
             'is_verified' => $data['is_verified'] ?? 0,
             'notifications_marketing' => $data['notifications_marketing'] ?? 0,
             'notifications_updates' => $data['notifications_updates'] ?? 1,
+            'account_kind' => $data['account_kind'] ?? 'customer',
         ]);
 
         return (int) $this->db->lastInsertId();
@@ -112,5 +113,32 @@ class UserRepository
     {
         $stmt = $this->db->prepare('UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = :id');
         $stmt->execute(['id' => $id]);
+    }
+
+    public function recordLoginAttempt(string $email, string $ip, bool $successful): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO login_attempts (email, ip_address, successful, attempted_at) VALUES (:email, :ip, :successful, NOW())'
+        );
+        $stmt->execute([
+            'email' => $email,
+            'ip' => $ip,
+            'successful' => $successful ? 1 : 0,
+        ]);
+    }
+
+    public function recentFailedAttempts(string $email, string $ip, int $windowSeconds): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM login_attempts
+             WHERE email = :email AND ip_address = :ip AND successful = 0
+               AND attempted_at >= (NOW() - INTERVAL :window_seconds SECOND)'
+        );
+        $stmt->bindValue('email', $email);
+        $stmt->bindValue('ip', $ip);
+        $stmt->bindValue('window_seconds', $windowSeconds, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
     }
 }

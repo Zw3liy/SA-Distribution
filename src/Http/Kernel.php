@@ -6,23 +6,30 @@ namespace App\Http;
 use App\Config\Config;
 use App\Container\Container;
 use App\Controllers\AccountController;
-use App\Controllers\AuthController;
 use App\Controllers\CartController;
 use App\Controllers\HomeController;
 use App\Controllers\ProductController;
 use App\Controllers\QuoteController;
 use App\Controllers\WishlistController;
 use App\Database\Database;
+use App\Domains\Identity\Controllers\AuthController;
+use App\Domains\Identity\Repositories\ApiCredentialRepository;
+use App\Domains\Identity\Repositories\ApiCredentialRepositoryInterface;
+use App\Domains\Identity\Repositories\UserRepository;
+use App\Domains\Identity\Repositories\UserRepositoryInterface;
+use App\Domains\Identity\Services\ApiCredentialService;
+use App\Domains\Identity\Services\ApiCredentialServiceInterface;
+use App\Domains\Identity\Services\AuthService;
+use App\Domains\Identity\Services\AuthServiceInterface;
+use App\Domains\Identity\Services\UserService;
+use App\Domains\Identity\Services\UserServiceInterface;
 use App\Logging\Logger;
 use App\Repositories\CartRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\QuoteRepository;
-use App\Repositories\UserRepository;
-use App\Services\AuthService;
 use App\Services\CartService;
 use App\Services\ProductService;
 use App\Services\QuoteService;
-use App\Services\UserService;
 use App\Support\View;
 use ErrorException;
 use PDO;
@@ -162,9 +169,30 @@ final class Kernel
             return (new Database($this->config->get('db')))->getConnection();
         });
 
-        $this->container->set(UserRepository::class, function (Container $c) {
+        // Identity domain — bound by interface, per docs/specs/01-identity.md §5/§6.
+        $this->container->set(UserRepositoryInterface::class, function (Container $c) {
             return new UserRepository($c->get(PDO::class));
         });
+        $this->container->set(ApiCredentialRepositoryInterface::class, function (Container $c) {
+            return new ApiCredentialRepository($c->get(PDO::class));
+        });
+        $this->container->set(AuthServiceInterface::class, function (Container $c) {
+            return new AuthService($c->get(UserRepositoryInterface::class));
+        });
+        $this->container->set(UserServiceInterface::class, function (Container $c) {
+            return new UserService($c->get(UserRepositoryInterface::class));
+        });
+        $this->container->set(ApiCredentialServiceInterface::class, function (Container $c) {
+            return new ApiCredentialService($c->get(ApiCredentialRepositoryInterface::class), $c->get(UserRepositoryInterface::class));
+        });
+        $this->container->set(AuthController::class, function (Container $c) {
+            return new AuthController($c->get(AuthServiceInterface::class), $c->get('config'));
+        });
+
+        // Not-yet-migrated domains — unchanged from Phase 3, still bound
+        // by concrete class. AccountController depends on Identity's
+        // UserServiceInterface (a cross-domain service dependency, which
+        // is fine — see docs/specs/00-index.md conventions).
         $this->container->set(ProductRepository::class, function (Container $c) {
             return new ProductRepository($c->get(PDO::class));
         });
@@ -175,12 +203,6 @@ final class Kernel
             return new QuoteRepository($c->get(PDO::class));
         });
 
-        $this->container->set(AuthService::class, function (Container $c) {
-            return new AuthService($c->get(UserRepository::class));
-        });
-        $this->container->set(UserService::class, function (Container $c) {
-            return new UserService($c->get(UserRepository::class));
-        });
         $this->container->set(ProductService::class, function (Container $c) {
             return new ProductService($c->get(ProductRepository::class));
         });
@@ -194,11 +216,8 @@ final class Kernel
         $this->container->set(HomeController::class, function (Container $c) {
             return new HomeController($c->get('config'));
         });
-        $this->container->set(AuthController::class, function (Container $c) {
-            return new AuthController($c->get(AuthService::class), $c->get('config'));
-        });
         $this->container->set(AccountController::class, function (Container $c) {
-            return new AccountController($c->get(UserService::class), $c->get('config'));
+            return new AccountController($c->get(UserServiceInterface::class), $c->get('config'));
         });
         $this->container->set(CartController::class, function (Container $c) {
             return new CartController($c->get(CartService::class), $c->get(ProductService::class), $c->get('config'));

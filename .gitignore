@@ -37,3 +37,6 @@ php.ini-*
 # Composer dependencies -- run `composer install` to generate
 /vendor/
 composer.phar
+
+# PHPUnit
+.phpunit.result.cache

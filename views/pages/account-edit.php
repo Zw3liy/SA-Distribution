@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * @var array $appConfig
- * @var \App\Models\User $user
+ * @var \App\Domains\Identity\Models\User $user
  * @var string $error
  * @var string $flashMessage
  */

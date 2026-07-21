@@ -1,13 +1,17 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers;
+namespace App\Domains\Identity\Controllers;
 
 use App\Config\Config;
+use App\Domains\Identity\Exceptions\AccountInactiveException;
+use App\Domains\Identity\Exceptions\AccountLockedException;
+use App\Domains\Identity\Exceptions\DuplicateEmailException;
+use App\Domains\Identity\Exceptions\InvalidCredentialsException;
+use App\Domains\Identity\Models\User;
+use App\Domains\Identity\Services\AuthServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
-use App\Models\User;
-use App\Services\AuthService;
 use App\Support\View;
 use InvalidArgumentException;
 use RuntimeException;
@@ -15,13 +19,13 @@ use Throwable;
 
 class AuthController
 {
-    /** @var AuthService */
+    /** @var AuthServiceInterface */
     private $authService;
 
     /** @var Config */
     private $config;
 
-    public function __construct(AuthService $authService, Config $config)
+    public function __construct(AuthServiceInterface $authService, Config $config)
     {
         $this->authService = $authService;
         $this->config = $config;
@@ -29,7 +33,11 @@ class AuthController
 
     /**
      * Original business logic, unchanged: parses and validates
-     * registration input and delegates to AuthService.
+     * registration input and delegates to AuthService. Now throws
+     * DuplicateEmailException (via AuthService) instead of a generic
+     * InvalidArgumentException for the duplicate-email case specifically
+     * -- everything else about this method's observable behavior is
+     * identical to Phase 3.
      */
     public function handleRegister(): void
     {
@@ -64,8 +72,13 @@ class AuthController
     }
 
     /**
-     * Original business logic, unchanged: parses login input,
-     * authenticates, and populates the session.
+     * Original business logic, unchanged in observable behavior: parses
+     * login input, authenticates, and populates the session. Two real,
+     * narrowly-scoped additions per docs/specs/01-identity.md: the
+     * client IP is now passed through to AuthService for rate-limiting
+     * (§2/§16), and the session ID is regenerated on successful login
+     * to close a session-fixation gap that existed in Phase 3 (logout
+     * already did this; login never did).
      */
     public function handleLogin(): User
     {
@@ -76,7 +89,10 @@ class AuthController
             throw new InvalidArgumentException('Email and password are required.');
         }
 
-        $user = $this->authService->authenticate($email, $password);
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+        $user = $this->authService->authenticate($email, $password, $ip);
+
+        session_regenerate_id(true);
 
         $_SESSION['user_id'] = $user->id;
         $_SESSION['user_email'] = $user->email;
@@ -97,9 +113,12 @@ class AuthController
     }
 
     /**
-     * Route action for GET/POST /login.php — orchestration that used to
-     * live at the top of login.php: guest-only guard, CSRF check, calling
-     * handleLogin(), and rendering the same login form.
+     * Route action for GET/POST /login.php. The catch block now maps
+     * each typed exception to the same user-facing message Phase 3
+     * showed for every failure case (a plain "Invalid email or
+     * password." etc.) -- the messages are unchanged, only the
+     * underlying exception types are now distinguishable in code and in
+     * logs.
      */
     public function login(Request $request): Response
     {
@@ -119,6 +138,12 @@ class AuthController
                 $this->handleLogin();
 
                 return Response::redirect('/account-dashboard.php');
+            } catch (InvalidCredentialsException $exception) {
+                $error = 'Invalid email or password.';
+            } catch (AccountLockedException $exception) {
+                $error = 'Too many failed login attempts. Please try again later.';
+            } catch (AccountInactiveException $exception) {
+                $error = 'Your account is inactive. Contact support.';
             } catch (Throwable $exception) {
                 $error = $exception->getMessage();
             }
@@ -154,6 +179,8 @@ class AuthController
                 $this->handleRegister();
 
                 return Response::redirect('/login.php');
+            } catch (DuplicateEmailException $exception) {
+                $error = 'A user with that email already exists.';
             } catch (Throwable $exception) {
                 $error = $exception->getMessage();
             }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Config\Config;
+use App\Domains\Identity\Services\UserServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
-use App\Services\UserService;
 use App\Support\View;
 use InvalidArgumentException;
 use RuntimeException;
@@ -14,13 +14,13 @@ use Throwable;
 
 class AccountController
 {
-    /** @var UserService */
+    /** @var UserServiceInterface */
     private $userService;
 
     /** @var Config */
     private $config;
 
-    public function __construct(UserService $userService, Config $config)
+    public function __construct(UserServiceInterface $userService, Config $config)
     {
         $this->userService = $userService;
         $this->config = $config;

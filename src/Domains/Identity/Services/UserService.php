@@ -1,18 +1,18 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\Domains\Identity\Services;
 
-use App\Models\User;
-use App\Repositories\UserRepository;
+use App\Domains\Identity\Models\User;
+use App\Domains\Identity\Repositories\UserRepositoryInterface;
 use RuntimeException;
 
-class UserService
+class UserService implements UserServiceInterface
 {
-    /** @var UserRepository */
+    /** @var UserRepositoryInterface */
     private $userRepository;
 
-    public function __construct(UserRepository $userRepository)
+    public function __construct(UserRepositoryInterface $userRepository)
     {
         $this->userRepository = $userRepository;
     }

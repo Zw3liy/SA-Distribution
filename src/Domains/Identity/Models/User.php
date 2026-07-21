@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Models;
+namespace App\Domains\Identity\Models;
 
 class User
 {
@@ -38,6 +38,9 @@ class User
     /** @var bool */
     public $notificationsUpdates;
 
+    /** @var string */
+    public $accountKind;
+
     /** @var string|null */
     public $lastLoginAt;
 
@@ -60,6 +63,7 @@ class User
         $this->isVerified = (bool) $data['is_verified'];
         $this->notificationsMarketing = (bool) ($data['notifications_marketing'] ?? 0);
         $this->notificationsUpdates = (bool) ($data['notifications_updates'] ?? 1);
+        $this->accountKind = (string) ($data['account_kind'] ?? 'customer');
         $this->lastLoginAt = $data['last_login_at'] ?? null;
         $this->createdAt = (string) $data['created_at'];
         $this->updatedAt = (string) $data['updated_at'];
@@ -68,5 +72,10 @@ class User
     public function getFullName(): string
     {
         return sprintf('%s %s', $this->firstName, $this->lastName);
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->accountKind === 'staff';
     }
 }

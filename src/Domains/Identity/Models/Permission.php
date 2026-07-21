@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Models;
+namespace App\Domains\Identity\Models;
 
-class Role
+class Permission
 {
     /** @var int */
     public $id;
