@@ -242,6 +242,41 @@ final class InventoryServiceTest extends TestCase
         $this->assertSame(230, $service->availableQuantity(10));
     }
 
+    /**
+     * Idempotency guard (docs/specs/07-warehouse.md §2): Orders consumes
+     * reservations on the paid->fulfilling transition AND Warehouse's
+     * pick flow consumes on picking -- both may legitimately fire for
+     * the same reservation. A second consume must not deduct on-hand
+     * again or write a duplicate StockMovement. Released reservations
+     * (cancelled orders) are equally untouchable.
+     */
+    public function testConsumeReservationIsIdempotentForAlreadyConsumedOrReleasedReservations(): void
+    {
+        foreach (['consumed', 'released'] as $status) {
+            $itemRepo = $this->createMock(InventoryItemRepositoryInterface::class);
+            $itemRepo->expects($this->never())->method('deductOnHand');
+
+            $reservationRepo = $this->createMock(StockReservationRepositoryInterface::class);
+            $reservationRepo->method('findById')->willReturn(new StockReservation([
+                'id' => 1,
+                'inventory_item_id' => 1,
+                'order_reference' => 'ORDER-1',
+                'quantity' => 5,
+                'expires_at' => '2026-01-01 00:30:00',
+                'status' => $status,
+                'created_at' => '2026-01-01 00:00:00',
+            ]));
+
+            $movementRepo = $this->createMock(StockMovementRepositoryInterface::class);
+            $movementRepo->expects($this->never())->method('record');
+
+            $service = $this->makeService($itemRepo, $reservationRepo, $movementRepo);
+            $service->consumeReservation(1);
+
+            $this->assertTrue(true, "Consuming a {$status} reservation must be a no-op.");
+        }
+    }
+
     public function testInitializeForProductCreatesZeroQuantityItemInDefaultWarehouse(): void
     {
         $itemRepo = $this->createMock(InventoryItemRepositoryInterface::class);
