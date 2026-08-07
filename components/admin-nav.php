@@ -17,6 +17,7 @@ declare(strict_types=1);
             <a href="/admin/customers">Customers</a>
             <a href="/admin/inventory">Inventory</a>
             <a href="/admin/orders">Orders</a>
+            <a href="/admin/warehouse/pick-lists">Warehouse</a>
             <a href="/admin/staff">Staff</a>
             <a href="/admin/settings">Settings</a>
             <a href="/admin/feature-flags">Feature Flags</a>

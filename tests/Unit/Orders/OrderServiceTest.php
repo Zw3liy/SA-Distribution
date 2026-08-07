@@ -68,12 +68,14 @@ final class OrderServiceTest extends TestCase
     private function makeService(
         OrderRepositoryInterface $orderRepository,
         ?OrderStatusHistoryRepositoryInterface $historyRepository = null,
-        ?InventoryServiceInterface $inventoryService = null
+        ?InventoryServiceInterface $inventoryService = null,
+        ?\App\Platform\Events\EventDispatcher $eventDispatcher = null
     ): OrderService {
         return new OrderService(
             $orderRepository,
             $historyRepository ?? $this->createMock(OrderStatusHistoryRepositoryInterface::class),
-            $inventoryService ?? $this->createMock(InventoryServiceInterface::class)
+            $inventoryService ?? $this->createMock(InventoryServiceInterface::class),
+            $eventDispatcher
         );
     }
 
@@ -355,5 +357,69 @@ final class OrderServiceTest extends TestCase
         $this->assertSame($orders, $service->listAllForAdmin(25, 0));
         $this->assertSame(7, $service->countAllForAdmin());
         $this->assertSame($historyEntries, $service->statusHistoryFor(1));
+    }
+
+    /**
+     * docs/specs/07-warehouse.md §10: after a successful transition the
+     * OrderStatusChanged event is published so the Warehouse subscriber
+     * can generate the pick list on paid->fulfilling. Uses the real
+     * in-process dispatcher, not a mock, to pin the actual payload.
+     */
+    public function testTransitionDispatchesOrderStatusChangedWithFromAndTo(): void
+    {
+        $order = $this->makeOrder();
+        $repo = $this->createMock(OrderRepositoryInterface::class);
+        $repo->method('findById')->with(1)->willReturn($order);
+
+        $history = $this->createMock(OrderStatusHistoryRepositoryInterface::class);
+
+        $logFile = sys_get_temp_dir() . '/orders-dispatch-test-' . uniqid() . '.log';
+        $dispatcher = new \App\Platform\Events\EventDispatcher(new \App\Logging\Logger($logFile));
+
+        $captured = null;
+        $dispatcher->subscribe(\App\Domains\Orders\Events\OrderStatusChanged::class, function ($event) use (&$captured): void {
+            $captured = $event;
+        });
+
+        $service = $this->makeService($repo, $history, null, $dispatcher);
+        $service->transition(1, Order::STATUS_PAID, 42, 'Payment confirmed');
+
+        $this->assertNotNull($captured);
+        $this->assertSame(1, $captured->orderId);
+        $this->assertSame(Order::STATUS_PENDING_PAYMENT, $captured->fromStatus);
+        $this->assertSame(Order::STATUS_PAID, $captured->toStatus);
+
+        if (is_file($logFile)) {
+            unlink($logFile);
+        }
+    }
+
+    /**
+     * A failing subscriber must not break the transition itself
+     * (best-effort bus semantics, docs/specs/00-index.md).
+     */
+    public function testTransitionSucceedsEvenWhenASubscriberThrows(): void
+    {
+        $order = $this->makeOrder();
+        $repo = $this->createMock(OrderRepositoryInterface::class);
+        $repo->method('findById')->with(1)->willReturn($order);
+        $repo->expects($this->once())->method('updateStatus')->with(1, Order::STATUS_PAID);
+
+        $history = $this->createMock(OrderStatusHistoryRepositoryInterface::class);
+
+        $logFile = sys_get_temp_dir() . '/orders-dispatch-test-' . uniqid() . '.log';
+        $dispatcher = new \App\Platform\Events\EventDispatcher(new \App\Logging\Logger($logFile));
+        $dispatcher->subscribe(\App\Domains\Orders\Events\OrderStatusChanged::class, function (): void {
+            throw new \RuntimeException('Subscriber exploded.');
+        });
+
+        $service = $this->makeService($repo, $history, null, $dispatcher);
+        $service->transition(1, Order::STATUS_PAID, 42, 'Payment confirmed');
+
+        $this->assertTrue(true);
+
+        if (is_file($logFile)) {
+            unlink($logFile);
+        }
     }
 }

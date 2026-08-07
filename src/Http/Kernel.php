@@ -87,7 +87,28 @@ use App\Domains\Orders\Services\OrderService;
 use App\Domains\Orders\Services\OrderServiceInterface;
 use App\Domains\Orders\Services\TaxCalculator;
 use App\Domains\Orders\Services\TaxCalculatorInterface;
+use App\Domains\Orders\Events\OrderStatusChanged;
+use App\Domains\Orders\Models\Order;
+use App\Domains\Warehouse\Controllers\AdminWarehouseController;
+use App\Domains\Warehouse\Events\OrderShipped;
+use App\Domains\Warehouse\Repositories\GoodsReceiptRepository;
+use App\Domains\Warehouse\Repositories\GoodsReceiptRepositoryInterface;
+use App\Domains\Warehouse\Repositories\PickListRepository;
+use App\Domains\Warehouse\Repositories\PickListRepositoryInterface;
+use App\Domains\Warehouse\Repositories\ShipmentRepository;
+use App\Domains\Warehouse\Repositories\ShipmentRepositoryInterface;
+use App\Domains\Warehouse\Repositories\StockTransferRepository;
+use App\Domains\Warehouse\Repositories\StockTransferRepositoryInterface;
+use App\Domains\Warehouse\Services\GoodsReceiptService;
+use App\Domains\Warehouse\Services\GoodsReceiptServiceInterface;
+use App\Domains\Warehouse\Services\PickListService;
+use App\Domains\Warehouse\Services\PickListServiceInterface;
+use App\Domains\Warehouse\Services\ShipmentService;
+use App\Domains\Warehouse\Services\ShipmentServiceInterface;
+use App\Domains\Warehouse\Services\StockTransferService;
+use App\Domains\Warehouse\Services\StockTransferServiceInterface;
 use App\Logging\Logger;
+use App\Platform\Events\EventDispatcher;
 use App\Repositories\QuoteRepository;
 use App\Services\QuoteService;
 use App\Support\View;
@@ -132,6 +153,7 @@ final class Kernel
         View::setBasePath($this->basePath . '/views');
 
         $this->registerBindings();
+        $this->registerEventSubscriptions();
         $this->registerRoutes();
     }
 
@@ -265,6 +287,16 @@ final class Kernel
 
         $this->container->set(PDO::class, function () {
             return (new Database($this->config->get('db')))->getConnection();
+        });
+
+        // Platform event bus (docs/specs/00-index.md cross-domain
+        // conventions): the synchronous in-process dispatcher. Orders
+        // publishes OrderStatusChanged on every transition; Warehouse
+        // subscribes (pick-list generation) and publishes OrderShipped,
+        // which Orders consumes to complete the loop
+        // (docs/specs/07-warehouse.md §9/§10).
+        $this->container->set(EventDispatcher::class, function (Container $c) {
+            return new EventDispatcher($c->get(Logger::class));
         });
 
         // Identity domain — bound by interface, per docs/specs/01-identity.md §5/§6.
@@ -451,7 +483,8 @@ final class Kernel
             return new OrderService(
                 $c->get(OrderRepositoryInterface::class),
                 $c->get(OrderStatusHistoryRepositoryInterface::class),
-                $c->get(InventoryServiceInterface::class)
+                $c->get(InventoryServiceInterface::class),
+                $c->get(EventDispatcher::class)
             );
         });
         $this->container->set(CheckoutServiceInterface::class, function (Container $c) {
@@ -483,6 +516,71 @@ final class Kernel
             return new AdminOrderController($c->get(OrderServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
         });
 
+        // Warehouse domain — bound by interface, per
+        // docs/specs/07-warehouse.md §5/§6. PickListService and
+        // ShipmentService take the optional EventDispatcher so the
+        // OrderStatusChanged/OrderShipped loop can be unit-tested with
+        // or without the bus; the Kernel always provides it.
+        $this->container->set(PickListRepositoryInterface::class, function (Container $c) {
+            return new PickListRepository($c->get(PDO::class));
+        });
+        $this->container->set(ShipmentRepositoryInterface::class, function (Container $c) {
+            return new ShipmentRepository($c->get(PDO::class));
+        });
+        $this->container->set(GoodsReceiptRepositoryInterface::class, function (Container $c) {
+            return new GoodsReceiptRepository($c->get(PDO::class));
+        });
+        $this->container->set(StockTransferRepositoryInterface::class, function (Container $c) {
+            return new StockTransferRepository($c->get(PDO::class));
+        });
+        $this->container->set(PickListServiceInterface::class, function (Container $c) {
+            return new PickListService(
+                $c->get(PickListRepositoryInterface::class),
+                $c->get(OrderServiceInterface::class),
+                $c->get(WarehouseRepositoryInterface::class),
+                $c->get(InventoryServiceInterface::class),
+                $c->get(EventDispatcher::class)
+            );
+        });
+        $this->container->set(ShipmentServiceInterface::class, function (Container $c) {
+            return new ShipmentService(
+                $c->get(ShipmentRepositoryInterface::class),
+                $c->get(PickListRepositoryInterface::class),
+                $c->get(EventDispatcher::class)
+            );
+        });
+        $this->container->set(GoodsReceiptServiceInterface::class, function (Container $c) {
+            return new GoodsReceiptService(
+                $c->get(GoodsReceiptRepositoryInterface::class),
+                $c->get(InventoryServiceInterface::class),
+                $c->get(EventDispatcher::class)
+            );
+        });
+        $this->container->set(StockTransferServiceInterface::class, function (Container $c) {
+            // StockTransferService takes the shared PDO deliberately
+            // (the §14 atomic-pair transaction) -- documented on the
+            // service itself; every repository shares this same PDO
+            // instance, so the transaction spans both Inventory legs.
+            return new StockTransferService(
+                $c->get(StockTransferRepositoryInterface::class),
+                $c->get(InventoryServiceInterface::class),
+                $c->get(PDO::class),
+                $c->get(EventDispatcher::class)
+            );
+        });
+        $this->container->set(AdminWarehouseController::class, function (Container $c) {
+            return new AdminWarehouseController(
+                $c->get(PickListServiceInterface::class),
+                $c->get(ShipmentServiceInterface::class),
+                $c->get(GoodsReceiptServiceInterface::class),
+                $c->get(StockTransferServiceInterface::class),
+                $c->get(WarehouseRepositoryInterface::class),
+                $c->get(UserServiceInterface::class),
+                $c->get(AuditLoggerInterface::class),
+                $c->get('config')
+            );
+        });
+
         // Not-yet-migrated domains — unchanged from Phase 3, still bound
         // by concrete class. QuoteController now depends on Orders'
         // CartServiceInterface (namespace-only change, same contract).
@@ -498,6 +596,44 @@ final class Kernel
         });
         $this->container->set(QuoteController::class, function (Container $c) {
             return new QuoteController($c->get(QuoteService::class), $c->get(CartServiceInterface::class), $c->get('config'));
+        });
+    }
+
+    /**
+     * Wires the synchronous in-process event subscriptions
+     * (docs/specs/07-warehouse.md §9/§10). Both loops are bidirectional
+     * between Orders and Warehouse:
+     *
+     *  1. OrderStatusChanged (paid->fulfilling) -> PickListService::generateFor()
+     *  2. ShipmentService publishes OrderShipped -> OrderService::transition('shipped')
+     *
+     * Subscribers are closures resolved from the container at dispatch
+     * time, so there is no constructor cycle between the two domains.
+     * The EventDispatcher is best-effort: a subscriber failure is logged
+     * and never breaks the publisher (e.g. the pick-list generation
+     * failing must not fail the order transition that triggered it).
+     */
+    private function registerEventSubscriptions(): void
+    {
+        $dispatcher = $this->container->get(EventDispatcher::class);
+
+        $dispatcher->subscribe(OrderStatusChanged::class, function (OrderStatusChanged $event): void {
+            if ($event->toStatus === Order::STATUS_FULFILLING) {
+                $this->container->get(PickListServiceInterface::class)->generateFor($event->orderId);
+            }
+        });
+
+        $dispatcher->subscribe(OrderShipped::class, function (OrderShipped $event): void {
+            $orderService = $this->container->get(OrderServiceInterface::class);
+            $order = $orderService->findById($event->orderId);
+
+            // Guard: only advance a fulfilling order (a manually
+            // transitioned order must not be double-advanced, and an
+            // invalid transition would otherwise surface as a logged
+            // subscriber error).
+            if ($order !== null && $order->status === Order::STATUS_FULFILLING) {
+                $orderService->transition($event->orderId, Order::STATUS_SHIPPED, $event->actorUserId, 'Shipment created (' . $event->carrier . ').');
+            }
         });
     }
 
@@ -553,6 +689,13 @@ final class Kernel
         // query-param routing convention as Customers/Inventory.
         $this->router->any('/admin/orders', AdminOrderController::class, 'index');
         $this->router->any('/admin/orders/view', AdminOrderController::class, 'show');
+
+        // Warehouse domain — staff-only, guarded in handle() above. Same
+        // query-param routing convention as Customers/Inventory/Orders.
+        $this->router->any('/admin/warehouse/pick-lists', AdminWarehouseController::class, 'pickLists');
+        $this->router->any('/admin/warehouse/pick-list', AdminWarehouseController::class, 'pickListDetail');
+        $this->router->any('/admin/warehouse/receiving', AdminWarehouseController::class, 'receiving');
+        $this->router->any('/admin/warehouse/transfers', AdminWarehouseController::class, 'transfers');
     }
 
     private function notFoundResponse(): Response

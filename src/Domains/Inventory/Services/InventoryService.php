@@ -128,6 +128,20 @@ class InventoryService implements InventoryServiceInterface
     {
         $reservation = $this->getReservationOrFail($reservationId);
 
+        // Idempotency guard (same guarantee releaseReservation already
+        // provides): a reservation is consumed at most once. Two
+        // legitimate callers exist by design -- Orders consumes on the
+        // paid->fulfilling transition (docs/specs/06-orders.md §2) and
+        // Warehouse's pick flow consumes on picking
+        // (docs/specs/07-warehouse.md §2) -- and the event-driven wiring
+        // means both may legitimately fire for the same reservation.
+        // Without this guard the second call would deduct on-hand a
+        // second time and write a duplicate StockMovement. Released
+        // reservations (cancelled orders) are equally untouchable.
+        if ($reservation->status !== StockReservation::STATUS_ACTIVE) {
+            return;
+        }
+
         $this->itemRepository->deductOnHand($reservation->inventoryItemId, $reservation->quantity);
         $this->movementRepository->record([
             'inventory_item_id' => $reservation->inventoryItemId,
