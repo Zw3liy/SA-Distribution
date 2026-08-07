@@ -4,11 +4,13 @@ declare(strict_types=1);
 namespace App\Domains\Orders\Services;
 
 use App\Domains\Inventory\Services\InventoryServiceInterface;
+use App\Domains\Orders\Events\OrderStatusChanged;
 use App\Domains\Orders\Exceptions\InvalidOrderTransitionException;
 use App\Domains\Orders\Exceptions\OrderNotFoundException;
 use App\Domains\Orders\Models\Order;
 use App\Domains\Orders\Repositories\OrderRepositoryInterface;
 use App\Domains\Orders\Repositories\OrderStatusHistoryRepositoryInterface;
+use App\Platform\Events\EventDispatcher;
 
 /**
  * Enforces the strict forward state machine (docs/specs/06-orders.md
@@ -42,14 +44,19 @@ class OrderService implements OrderServiceInterface
     /** @var InventoryServiceInterface */
     private $inventoryService;
 
+    /** @var EventDispatcher|null */
+    private $eventDispatcher;
+
     public function __construct(
         OrderRepositoryInterface $orderRepository,
         OrderStatusHistoryRepositoryInterface $historyRepository,
-        InventoryServiceInterface $inventoryService
+        InventoryServiceInterface $inventoryService,
+        ?EventDispatcher $eventDispatcher = null
     ) {
         $this->orderRepository = $orderRepository;
         $this->historyRepository = $historyRepository;
         $this->inventoryService = $inventoryService;
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     public function findById(int $id): ?Order
@@ -97,6 +104,15 @@ class OrderService implements OrderServiceInterface
 
         $this->orderRepository->updateStatus($orderId, $toStatus);
         $this->historyRepository->record($orderId, $order->status, $toStatus, $actorUserId, $note);
+
+        // Publish the transition (docs/specs/07-warehouse.md §10): the
+        // Warehouse subscriber generates the pick list on paid->fulfilling.
+        // Dispatch is best-effort (the EventDispatcher logs subscriber
+        // failures and never breaks the caller); a null dispatcher keeps
+        // pre-Warehouse behavior byte-identical.
+        if ($this->eventDispatcher !== null) {
+            $this->eventDispatcher->dispatch(new OrderStatusChanged($orderId, $order->status, $toStatus));
+        }
     }
 
     /**
