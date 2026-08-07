@@ -136,6 +136,13 @@ final class ProductRepositoryTest extends TestCase
         ]));
 
         $row = $this->repository->getProductById($id);
-        $this->assertSame(['color' => 'red', 'size' => 'M'], json_decode($row['attributes_json'], true));
+        $roundTripped = json_decode($row['attributes_json'], true);
+
+        // Key order is not part of the round-trip contract: MySQL 5.7's
+        // JSON binary format stores object keys sorted by length, while
+        // MySQL 8.0+/MariaDB preserve insertion order. Compare strictly
+        // but order-independently so the same test passes on all three.
+        ksort($roundTripped);
+        $this->assertSame(['color' => 'red', 'size' => 'M'], $roundTripped);
     }
 }
