@@ -40,3 +40,6 @@ composer.phar
 
 # PHPUnit
 .phpunit.result.cache
+AI_Agentina/.env
+AI_Agentina/*Key*
+*API key*
