@@ -1,8 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Models;
+namespace App\Domains\Orders\Models;
 
+/**
+ * Moved unchanged from src/Models/CartItem.php (docs/specs/06-orders.md
+ * §19 -- namespace-only migration, preserving Phase 3 behavior exactly).
+ */
 class CartItem
 {
     /** @var int */

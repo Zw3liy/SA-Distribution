@@ -8,6 +8,7 @@ use App\Domains\Customers\Models\Customer;
 use App\Domains\Customers\Services\AddressServiceInterface;
 use App\Domains\Customers\Services\CustomerServiceInterface;
 use App\Domains\Identity\Services\UserServiceInterface;
+use App\Domains\Orders\Services\OrderServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
 use App\Support\View;
@@ -16,12 +17,16 @@ use RuntimeException;
 use Throwable;
 
 /**
- * "My Account" dashboard/edit -- legitimately spans two domains'
- * services (Customers for company/address data, Identity for
- * login/security data), which is fine per docs/specs/00-index.md
- * conventions: controllers may depend on multiple domains' services; it
- * is *services* that must not cross-call each other's repositories
- * directly.
+ * "My Account" dashboard/edit/orders -- legitimately spans three
+ * domains' services (Customers for company/address data, Identity for
+ * login/security data, Orders for order history), which is fine per
+ * docs/specs/00-index.md conventions: controllers may depend on
+ * multiple domains' services; it is *services* that must not cross-call
+ * each other's repositories directly. The account-area order-history
+ * page belonging to this controller (rather than Orders' own) is the
+ * explicit precedent set in docs/specs/10-finance.md §7's note about
+ * the future invoice view: "the account-area page itself belongs to
+ * Customers."
  */
 class AccountController
 {
@@ -34,18 +39,25 @@ class AccountController
     /** @var AddressServiceInterface */
     private $addressService;
 
+    /** @var OrderServiceInterface */
+    private $orderService;
+
     /** @var Config */
     private $config;
+
+    private const PER_PAGE = 10;
 
     public function __construct(
         UserServiceInterface $userService,
         CustomerServiceInterface $customerService,
         AddressServiceInterface $addressService,
+        OrderServiceInterface $orderService,
         Config $config
     ) {
         $this->userService = $userService;
         $this->customerService = $customerService;
         $this->addressService = $addressService;
+        $this->orderService = $orderService;
         $this->config = $config;
     }
 
@@ -208,6 +220,38 @@ class AccountController
             'user' => $user,
             'addresses' => $this->addressService->listFor($customer),
             'error' => $error,
+            'flashMessage' => getFlashMessage(),
+        ]);
+
+        return Response::html($html);
+    }
+
+    /**
+     * Route action for GET /account-orders.php -- customer order
+     * history (docs/specs/06-orders.md §13).
+     */
+    public function orders(Request $request): Response
+    {
+        if (!isAuthenticated()) {
+            return Response::redirect('/login.php');
+        }
+
+        $userId = currentUserId();
+        $user = $this->userService->getUserById($userId);
+        if ($user === null) {
+            return Response::redirect('/login.php');
+        }
+
+        $customer = $this->resolveCustomer($user);
+
+        $page = max(1, (int) filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT) ?: 1);
+        $offset = ($page - 1) * self::PER_PAGE;
+
+        $html = View::render('pages/account-orders', [
+            'appConfig' => $this->config->all(),
+            'orders' => $this->orderService->myOrders($customer->id, self::PER_PAGE, $offset),
+            'currentPage' => $page,
+            'totalPages' => (int) max(1, ceil($this->orderService->countMyOrders($customer->id) / self::PER_PAGE)),
             'flashMessage' => getFlashMessage(),
         ]);
 

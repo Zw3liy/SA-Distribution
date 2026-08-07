@@ -1,12 +1,19 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Repositories;
+namespace App\Domains\Orders\Repositories;
 
 use PDO;
 use Throwable;
 
-class CartRepository
+/**
+ * Moved unchanged from src/Repositories/CartRepository.php
+ * (docs/specs/06-orders.md §19) -- namespace-only migration, now
+ * implementing the new CartRepositoryInterface. Method bodies are a
+ * direct copy of Phase 3's implementation, untouched, plus the new
+ * markConverted() / converted-cart exclusion required for checkout.
+ */
+class CartRepository implements CartRepositoryInterface
 {
     /** @var PDO */
     private $db;
@@ -18,12 +25,27 @@ class CartRepository
 
     public function getCartIdBySession(string $sessionId): ?int
     {
-        $stmt = $this->db->prepare('SELECT id FROM cart WHERE session_id = :session_id LIMIT 1');
+        // Excludes converted carts (docs/specs/06-orders.md §2) so a
+        // post-checkout add-to-cart creates a fresh row instead of
+        // silently reusing (and polluting) the historical, order-linked
+        // one. A no-op filter for every cart that predates this domain
+        // (converted_to_order_id was always NULL before checkout
+        // existed), so this is a safe, backward-compatible change to
+        // Phase 3's original query.
+        $stmt = $this->db->prepare('SELECT id FROM cart WHERE session_id = :session_id AND converted_to_order_id IS NULL LIMIT 1');
         $stmt->bindValue(':session_id', $sessionId, PDO::PARAM_STR);
         $stmt->execute();
 
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result === false ? null : (int) $result['id'];
+    }
+
+    public function markConverted(string $sessionId, int $orderId): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE cart SET converted_to_order_id = :order_id WHERE session_id = :session_id AND converted_to_order_id IS NULL'
+        );
+        $stmt->execute(['order_id' => $orderId, 'session_id' => $sessionId]);
     }
 
     public function saveCartItems(string $sessionId, array $items): void

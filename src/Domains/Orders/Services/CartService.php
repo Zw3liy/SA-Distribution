@@ -1,22 +1,29 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\Domains\Orders\Services;
 
 use App\Domains\Catalog\Repositories\ProductRepositoryInterface;
-use App\Models\CartItem;
-use App\Repositories\CartRepository;
+use App\Domains\Orders\Models\CartItem;
+use App\Domains\Orders\Repositories\CartRepositoryInterface;
 use InvalidArgumentException;
 
-class CartService
+/**
+ * Moved unchanged from src/Services/CartService.php
+ * (docs/specs/06-orders.md §19) -- namespace-only migration. This is the
+ * DB-backed cart path CheckoutService builds checkout against, per §19's
+ * explicit decision not to unify it with the session-based cart.php path
+ * in this pass.
+ */
+class CartService implements CartServiceInterface
 {
     /** @var ProductRepositoryInterface */
     private $productRepository;
 
-    /** @var CartRepository */
+    /** @var CartRepositoryInterface */
     private $cartRepository;
 
-    public function __construct(ProductRepositoryInterface $productRepository, CartRepository $cartRepository)
+    public function __construct(ProductRepositoryInterface $productRepository, CartRepositoryInterface $cartRepository)
     {
         $this->productRepository = $productRepository;
         $this->cartRepository = $cartRepository;
@@ -125,6 +132,11 @@ class CartService
     public function clearCart(string $sessionId): void
     {
         $this->cartRepository->clearCart($sessionId);
+    }
+
+    public function markCartConverted(string $sessionId, int $orderId): void
+    {
+        $this->cartRepository->markConverted($sessionId, $orderId);
     }
 
     private function getPersistedCartItems(string $sessionId): array

@@ -4,10 +4,10 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Config\Config;
-use App\Models\CartItem;
+use App\Domains\Orders\Models\CartItem;
+use App\Domains\Orders\Services\CartServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
-use App\Services\CartService;
 use App\Services\QuoteService;
 use InvalidArgumentException;
 use Throwable;
@@ -17,13 +17,13 @@ class QuoteController
     /** @var QuoteService */
     private $quoteService;
 
-    /** @var CartService */
+    /** @var CartServiceInterface */
     private $cartService;
 
     /** @var Config */
     private $config;
 
-    public function __construct(QuoteService $quoteService, CartService $cartService, Config $config)
+    public function __construct(QuoteService $quoteService, CartServiceInterface $cartService, Config $config)
     {
         $this->quoteService = $quoteService;
         $this->cartService = $cartService;

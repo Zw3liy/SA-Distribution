@@ -1,20 +1,28 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers;
+namespace App\Domains\Orders\Controllers;
 
 use App\Config\Config;
 use App\Domains\Catalog\Services\ProductServiceInterface;
+use App\Domains\Orders\Models\CartItem;
+use App\Domains\Orders\Services\CartServiceInterface;
 use App\Http\Request;
 use App\Http\Response;
-use App\Models\CartItem;
-use App\Services\CartService;
 use App\Support\View;
 use Throwable;
 
+/**
+ * Moved unchanged from src/Controllers/CartController.php
+ * (docs/specs/06-orders.md §19) -- namespace-only migration, now
+ * depending on CartServiceInterface instead of the concrete class.
+ * Both page() (session-based) and api() (DB-backed) methods are carried
+ * over exactly as Phase 3 left them; unifying them remains explicitly
+ * out of scope for this pass.
+ */
 class CartController
 {
-    /** @var CartService */
+    /** @var CartServiceInterface */
     private $cartService;
 
     /** @var ProductServiceInterface */
@@ -23,7 +31,7 @@ class CartController
     /** @var Config */
     private $config;
 
-    public function __construct(CartService $cartService, ProductServiceInterface $productService, Config $config)
+    public function __construct(CartServiceInterface $cartService, ProductServiceInterface $productService, Config $config)
     {
         $this->cartService = $cartService;
         $this->productService = $productService;

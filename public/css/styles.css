@@ -916,4 +916,43 @@ body {
 }
 .badge-inactive {
     background-color: #9ca3af;
-    color: 
+    color: #ffffff;
+}
+
+/* Customers domain (Phase 5) — account-type badges, self-service
+   address list, and inline single-button forms (e.g. "Set as default")
+   that shouldn't be laid out like a full form. */
+.badge-b2b {
+    background-color: #0057B8;
+    color: #ffffff;
+}
+.badge-b2c {
+    background-color: #6b7280;
+    color: #ffffff;
+}
+.badge-default {
+    background-color: #16a34a;
+    color: #ffffff;
+}
+.address-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+.address-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+.address-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.inline-form {
+    display: inline-block;
+    margin-top: 0.5rem;
+}

@@ -5,7 +5,6 @@ namespace App\Http;
 
 use App\Config\Config;
 use App\Container\Container;
-use App\Controllers\CartController;
 use App\Controllers\HomeController;
 use App\Controllers\QuoteController;
 use App\Database\Database;
@@ -69,10 +68,27 @@ use App\Domains\Inventory\Repositories\WarehouseRepository;
 use App\Domains\Inventory\Repositories\WarehouseRepositoryInterface;
 use App\Domains\Inventory\Services\InventoryService;
 use App\Domains\Inventory\Services\InventoryServiceInterface;
+use App\Domains\Orders\Controllers\AdminOrderController;
+use App\Domains\Orders\Controllers\CartController;
+use App\Domains\Orders\Controllers\CheckoutController;
+use App\Domains\Orders\Repositories\CartRepository;
+use App\Domains\Orders\Repositories\CartRepositoryInterface;
+use App\Domains\Orders\Repositories\OrderRepository;
+use App\Domains\Orders\Repositories\OrderRepositoryInterface;
+use App\Domains\Orders\Repositories\OrderStatusHistoryRepository;
+use App\Domains\Orders\Repositories\OrderStatusHistoryRepositoryInterface;
+use App\Domains\Orders\Repositories\PaymentRepository;
+use App\Domains\Orders\Repositories\PaymentRepositoryInterface;
+use App\Domains\Orders\Services\CartService;
+use App\Domains\Orders\Services\CartServiceInterface;
+use App\Domains\Orders\Services\CheckoutService;
+use App\Domains\Orders\Services\CheckoutServiceInterface;
+use App\Domains\Orders\Services\OrderService;
+use App\Domains\Orders\Services\OrderServiceInterface;
+use App\Domains\Orders\Services\TaxCalculator;
+use App\Domains\Orders\Services\TaxCalculatorInterface;
 use App\Logging\Logger;
-use App\Repositories\CartRepository;
 use App\Repositories\QuoteRepository;
-use App\Services\CartService;
 use App\Services\QuoteService;
 use App\Support\View;
 use ErrorException;
@@ -156,13 +172,12 @@ final class Kernel
      * per-screen permission checks (defense layer 2) are enforced
      * inside each admin controller action via
      * UserServiceInterface::hasPermission() -- Catalog's
-     * AdminProductController, Customers' AdminCustomerController, and
-     * Inventory's AdminInventoryController all enforce this second
-     * layer, now that the permission catalog has been seeded
-     * (docs/specs/03-catalog.md §19, docs/specs/04-customers.md §19,
-     * docs/specs/05-inventory.md §19 migrations; see also
-     * docs/reports/PHASE5-ADMINISTRATION-COMPLETION-REPORT.md, which
-     * flagged the empty permission catalog as a deferred risk).
+     * AdminProductController, Customers' AdminCustomerController,
+     * Inventory's AdminInventoryController, and Orders'
+     * AdminOrderController all enforce this second layer, now that the
+     * permission catalog has been seeded (docs/specs/03-catalog.md §19,
+     * docs/specs/04-customers.md §19, docs/specs/05-inventory.md §19,
+     * docs/specs/06-orders.md §19 migrations).
      */
     private function isAdminRoute(string $path): bool
     {
@@ -350,8 +365,12 @@ final class Kernel
         $this->container->set(AddressServiceInterface::class, function (Container $c) {
             return new AddressService($c->get(AddressRepositoryInterface::class));
         });
+        // AccountController now also depends on Orders' OrderServiceInterface
+        // (docs/specs/06-orders.md §13 -- the customer order-history page
+        // belongs to Customers' account area, not to a separate Orders
+        // controller; see AccountController::orders()).
         $this->container->set(AccountController::class, function (Container $c) {
-            return new AccountController($c->get(UserServiceInterface::class), $c->get(CustomerServiceInterface::class), $c->get(AddressServiceInterface::class), $c->get('config'));
+            return new AccountController($c->get(UserServiceInterface::class), $c->get(CustomerServiceInterface::class), $c->get(AddressServiceInterface::class), $c->get(OrderServiceInterface::class), $c->get('config'));
         });
         $this->container->set(WishlistController::class, function (Container $c) {
             return new WishlistController($c->get('config'));
@@ -364,8 +383,8 @@ final class Kernel
         // InventoryService depends on Catalog's ProductRepositoryInterface
         // directly (not a new Inventory-owned abstraction) solely to keep
         // the products.stock compatibility mirror in sync (§2) -- the same
-        // precedent as CartService depending directly on Catalog's
-        // ProductRepositoryInterface below.
+        // precedent as Orders' CartService/CheckoutService depending
+        // directly on Catalog's/Inventory's repositories below.
         $this->container->set(WarehouseRepositoryInterface::class, function (Container $c) {
             return new WarehouseRepository($c->get(PDO::class));
         });
@@ -400,20 +419,75 @@ final class Kernel
             );
         });
 
-        // Not-yet-migrated domains — unchanged from Phase 3, still bound
-        // by concrete class. CartController/CartService depend on
-        // Catalog's ProductServiceInterface/ProductRepositoryInterface
-        // (a cross-domain dependency, which is fine — see
-        // docs/specs/00-index.md conventions).
-        $this->container->set(CartRepository::class, function (Container $c) {
+        // Orders domain — bound by interface, per docs/specs/06-orders.md
+        // §5/§6. CartRepository/CartService/CartController are moved
+        // (namespace-only) from their Phase 3 locations per §19.
+        // CartService depends on Catalog's ProductRepositoryInterface
+        // directly, the same established precedent as Inventory's
+        // InventoryService above. CheckoutService depends on Inventory's
+        // WarehouseRepositoryInterface directly (the one deliberate
+        // repository-level cross-domain exception in this domain,
+        // documented on CheckoutService itself) for the single
+        // default-warehouse lookup.
+        $this->container->set(CartRepositoryInterface::class, function (Container $c) {
             return new CartRepository($c->get(PDO::class));
         });
-        $this->container->set(QuoteRepository::class, function (Container $c) {
-            return new QuoteRepository($c->get(PDO::class));
+        $this->container->set(CartServiceInterface::class, function (Container $c) {
+            return new CartService($c->get(ProductRepositoryInterface::class), $c->get(CartRepositoryInterface::class));
+        });
+        $this->container->set(OrderRepositoryInterface::class, function (Container $c) {
+            return new OrderRepository($c->get(PDO::class));
+        });
+        $this->container->set(OrderStatusHistoryRepositoryInterface::class, function (Container $c) {
+            return new OrderStatusHistoryRepository($c->get(PDO::class));
+        });
+        $this->container->set(PaymentRepositoryInterface::class, function (Container $c) {
+            return new PaymentRepository($c->get(PDO::class));
+        });
+        $this->container->set(TaxCalculatorInterface::class, function (Container $c) {
+            return new TaxCalculator();
+        });
+        $this->container->set(OrderServiceInterface::class, function (Container $c) {
+            return new OrderService(
+                $c->get(OrderRepositoryInterface::class),
+                $c->get(OrderStatusHistoryRepositoryInterface::class),
+                $c->get(InventoryServiceInterface::class)
+            );
+        });
+        $this->container->set(CheckoutServiceInterface::class, function (Container $c) {
+            return new CheckoutService(
+                $c->get(CartServiceInterface::class),
+                $c->get(CustomerServiceInterface::class),
+                $c->get(AddressServiceInterface::class),
+                $c->get(InventoryServiceInterface::class),
+                $c->get(WarehouseRepositoryInterface::class),
+                $c->get(TaxCalculatorInterface::class),
+                $c->get(OrderRepositoryInterface::class),
+                $c->get(PaymentRepositoryInterface::class)
+            );
+        });
+        $this->container->set(CartController::class, function (Container $c) {
+            return new CartController($c->get(CartServiceInterface::class), $c->get(ProductServiceInterface::class), $c->get('config'));
+        });
+        $this->container->set(CheckoutController::class, function (Container $c) {
+            return new CheckoutController(
+                $c->get(CartServiceInterface::class),
+                $c->get(CheckoutServiceInterface::class),
+                $c->get(UserServiceInterface::class),
+                $c->get(CustomerServiceInterface::class),
+                $c->get(AddressServiceInterface::class),
+                $c->get('config')
+            );
+        });
+        $this->container->set(AdminOrderController::class, function (Container $c) {
+            return new AdminOrderController($c->get(OrderServiceInterface::class), $c->get(UserServiceInterface::class), $c->get(AuditLoggerInterface::class), $c->get('config'));
         });
 
-        $this->container->set(CartService::class, function (Container $c) {
-            return new CartService($c->get(ProductRepositoryInterface::class), $c->get(CartRepository::class));
+        // Not-yet-migrated domains — unchanged from Phase 3, still bound
+        // by concrete class. QuoteController now depends on Orders'
+        // CartServiceInterface (namespace-only change, same contract).
+        $this->container->set(QuoteRepository::class, function (Container $c) {
+            return new QuoteRepository($c->get(PDO::class));
         });
         $this->container->set(QuoteService::class, function (Container $c) {
             return new QuoteService($c->get(QuoteRepository::class));
@@ -422,11 +496,8 @@ final class Kernel
         $this->container->set(HomeController::class, function (Container $c) {
             return new HomeController($c->get('config'));
         });
-        $this->container->set(CartController::class, function (Container $c) {
-            return new CartController($c->get(CartService::class), $c->get(ProductServiceInterface::class), $c->get('config'));
-        });
         $this->container->set(QuoteController::class, function (Container $c) {
-            return new QuoteController($c->get(QuoteService::class), $c->get(CartService::class), $c->get('config'));
+            return new QuoteController($c->get(QuoteService::class), $c->get(CartServiceInterface::class), $c->get('config'));
         });
     }
 
@@ -444,9 +515,12 @@ final class Kernel
 
         $this->router->any('/account-dashboard.php', AccountController::class, 'dashboard');
         $this->router->any('/account-edit.php', AccountController::class, 'edit');
+        $this->router->any('/account-orders.php', AccountController::class, 'orders');
 
         $this->router->any('/cart.php', CartController::class, 'page');
         $this->router->any('/cart-api.php', CartController::class, 'api');
+
+        $this->router->any('/checkout.php', CheckoutController::class, 'checkout');
 
         $this->router->any('/wishlist.php', WishlistController::class, 'page');
 
@@ -474,6 +548,11 @@ final class Kernel
         // query-param routing convention as Customers.
         $this->router->any('/admin/inventory', AdminInventoryController::class, 'index');
         $this->router->any('/admin/inventory/adjust', AdminInventoryController::class, 'adjust');
+
+        // Orders domain — staff-only, guarded in handle() above. Same
+        // query-param routing convention as Customers/Inventory.
+        $this->router->any('/admin/orders', AdminOrderController::class, 'index');
+        $this->router->any('/admin/orders/view', AdminOrderController::class, 'show');
     }
 
     private function notFoundResponse(): Response

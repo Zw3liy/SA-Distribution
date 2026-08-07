@@ -347,3 +347,5 @@ $financeTerm = 36;
     </main>
     <?php include APP_BASE_PATH . '/components/footer.php'; ?>
     <script src="js/main.js"></script>
+</body>
+</html>
