@@ -10,7 +10,7 @@ $baseUrl = rtrim((string) $appConfig['base_url'], '/') . '/';
             <span>South Africa's business technology store</span>
             <nav aria-label="Utility navigation">
                 <a href="<?= esc($baseUrl); ?>quote-request.php">Request a quote</a>
-                <a href="#contact">Business support</a>
+                <a href="tel:+27651109824">Call +27 65 110 9824</a>\n                <a href="https://wa.me/27651109824" target="_blank" rel="noopener">WhatsApp support</a>
                 <span>Secure nationwide delivery</span>
             </nav>
         </div>
