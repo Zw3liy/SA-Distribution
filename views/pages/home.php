@@ -7,6 +7,17 @@ declare(strict_types=1);
 $seoTitle = seo_title('Business Technology, Stock and Service');
 $seoDescription = 'Shop computers, networking, security, printing and business technology with nationwide delivery, volume pricing and expert support.';
 $categoryIcons = ['bi-laptop', 'bi-phone', 'bi-router', 'bi-camera-video', 'bi-printer', 'bi-server', 'bi-keyboard', 'bi-headset'];
+$featuredProducts = $featuredProducts ?? [];
+$categories = $categories ?? [
+    ['name' => 'Laptops'],
+    ['name' => 'Mobile & Apple'],
+    ['name' => 'Networking'],
+    ['name' => 'CCTV & Security'],
+    ['name' => 'Office & Printing'],
+    ['name' => 'Servers & Storage'],
+    ['name' => 'Components'],
+    ['name' => 'Accessories'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
