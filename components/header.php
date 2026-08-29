@@ -2,25 +2,61 @@
 declare(strict_types=1);
 
 /** @var array $appConfig */
+$baseUrl = rtrim((string) $appConfig['base_url'], '/') . '/';
 ?>
-<header class="site-header">
-    <div class="container header-inner">
-        <a class="brand" href="<?= esc($appConfig['base_url']); ?>">SA Business Distribution</a>
-        <nav class="site-nav" aria-label="Primary navigation">
-            <a href="<?= esc($appConfig['base_url']); ?>">Home</a>
-            <a href="products.php">Products</a>
-            <a href="cart.php">Cart (<?= getCartCount(); ?>)</a>
-            <a href="wishlist.php">Wishlist (<?= getWishlistCount(); ?>)</a>
-            <a href="#contact">Contact</a>
-            <?php if (isAuthenticated()): ?>
-                <a href="account-dashboard.php">My Account</a>
-            <?php else: ?>
-                <a href="login.php">Login</a>
-                <a href="register.php">Register</a>
-            <?php endif; ?>
-        </nav>
-        <div class="header-actions">
-            <a class="btn-secondary" href="#contact">Request Quote</a>
+<header class="retail-header">
+    <div class="retail-topbar">
+        <div class="container topbar-inner">
+            <span>South Africa's business technology store</span>
+            <nav aria-label="Utility navigation">
+                <a href="<?= esc($baseUrl); ?>quote-request.php">Request a quote</a>
+                <a href="tel:+27651109824">Call +27 65 110 9824</a>\n                <a href="https://wa.me/27651109824" target="_blank" rel="noopener">WhatsApp support</a>
+                <span>Secure nationwide delivery</span>
+            </nav>
         </div>
+    </div>
+
+    <div class="retail-mainbar">
+        <div class="container mainbar-inner">
+            <a class="retail-brand" href="<?= esc($baseUrl); ?>" aria-label="SA Business Distribution home">
+                <span class="brand-mark"><img src="<?= esc($baseUrl); ?>images/logo-round.png" alt=""></span>
+                <span class="brand-copy">
+                    <strong>SA Distribution</strong>
+                    <small>Enterprise IT &amp; Business Solutions</small>
+                </span>
+            </a>
+
+            <form class="header-search" action="<?= esc($baseUrl); ?>products.php" method="get" role="search">
+                <label class="sr-only" for="store-search">Search the catalogue</label>
+                <input id="store-search" name="search" type="search" placeholder="Search products, brands or SKUs" autocomplete="off">
+                <button type="submit" aria-label="Search"><i class="bi bi-search" aria-hidden="true"></i><span>Search</span></button>
+            </form>
+
+            <nav class="account-actions" aria-label="Account and basket">
+                <a href="<?= esc($baseUrl); ?>wishlist.php" aria-label="Wishlist">
+                    <i class="bi bi-heart" aria-hidden="true"></i><span>Wishlist</span><b><?= getWishlistCount(); ?></b>
+                </a>
+                <a href="<?= esc($baseUrl); ?>cart.php" aria-label="Shopping cart">
+                    <i class="bi bi-cart3" aria-hidden="true"></i><span>Cart</span><b><?= getCartCount(); ?></b>
+                </a>
+                <?php if (isAuthenticated()): ?>
+                    <a href="<?= esc($baseUrl); ?>account-dashboard.php"><i class="bi bi-person-circle" aria-hidden="true"></i><span>Account</span></a>
+                <?php else: ?>
+                    <a href="<?= esc($baseUrl); ?>login.php"><i class="bi bi-person" aria-hidden="true"></i><span>Sign in</span></a>
+                <?php endif; ?>
+            </nav>
+        </div>
+    </div>
+
+    <div class="category-nav-wrap">
+        <nav class="container category-nav" aria-label="Product categories">
+            <a class="category-all" href="<?= esc($baseUrl); ?>products.php"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> Shop all</a>
+            <a href="<?= esc($baseUrl); ?>products.php?search=laptop">Laptops</a>
+            <a href="<?= esc($baseUrl); ?>products.php?search=desktop">PCs &amp; Components</a>
+            <a href="<?= esc($baseUrl); ?>products.php?search=network">Networking</a>
+            <a href="<?= esc($baseUrl); ?>products.php?search=security">CCTV &amp; Security</a>
+            <a href="<?= esc($baseUrl); ?>products.php?search=printer">Office &amp; Printing</a>
+            <a href="<?= esc($baseUrl); ?>products.php?sort=featured" class="nav-deals"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Deals</a>
+        </nav>
     </div>
 </header>
