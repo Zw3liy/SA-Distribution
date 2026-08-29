@@ -958,11 +958,7 @@ body {
 }
 
 
-/* =========================================================
-   RESTORED RETAIL STOREFRONT — Drive recovery, 2026-08-29
-   Layered after the platform styles to preserve admin/account UI.
-   ========================================================= */
-
+/* RESTORED EVETECH/TAKEALOT-INSPIRED STOREFRONT */
 :root {
   --ink: #111827;
   --muted: #64748b;
@@ -1230,4 +1226,74 @@ img { max-width: 100%; }
   .retail-section-heading { align-items: flex-start; flex-direction: column; }
   .product-actions, .product-meta-list, .product-cta-grid, .quote-grid { grid-template-columns: 1fr; }
   .footer-bottom { flex-direction: column; justify-content: center; text-align: center; }
+}
+
+/* Takealot-informed catalogue mechanics: sidebar discovery, compact merchandising and direct cart actions. */
+.catalogue-banner { background: linear-gradient(115deg, #071b33, #0b4f92); color: #fff; padding: 28px 32px; border-radius: 7px; display: flex; justify-content: space-between; align-items: center; gap: 25px; margin-bottom: 18px; }
+.catalogue-banner h1 { margin: 9px 0 5px; font-size: clamp(1.8rem, 3vw, 2.8rem); }
+.catalogue-banner p { margin: 0; color: #c5d8eb; }
+.catalogue-assurance { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; align-items: center; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); padding: 14px; min-width: 330px; }
+.catalogue-assurance > i { grid-row: 1 / 3; font-size: 1.7rem; color: #70e5ff; }
+.catalogue-assurance span { display: grid; }
+.catalogue-assurance small { color: #c5d8eb; }
+.catalogue-assurance a { grid-column: 2; color: #fff; font-size: .78rem; font-weight: 900; }
+.catalogue-layout { display: grid; grid-template-columns: 245px minmax(0, 1fr); align-items: start; gap: 18px; }
+.catalogue-sidebar { background: #fff; border: 1px solid var(--line); position: sticky; top: 185px; }
+.catalogue-sidebar form { padding: 18px; }
+.sidebar-title { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 13px; }
+.sidebar-title a { color: var(--blue); font-size: .72rem; }
+.sidebar-filter { display: grid; gap: 7px; padding: 16px 0; border-bottom: 1px solid #edf1f5; }
+.sidebar-filter label { font-size: .76rem; font-weight: 900; }
+.sidebar-filter input, .sidebar-filter select { width: 100%; border: 1px solid #bfcbd8; border-radius: 3px; background: #fff; padding: 10px; font: inherit; font-size: .8rem; }
+.sidebar-search { position: relative; }
+.sidebar-search input { padding-right: 30px; }
+.sidebar-search i { position: absolute; right: 10px; top: 10px; color: var(--muted); }
+.sidebar-apply { width: 100%; margin-top: 16px; }
+.sidebar-help { display: flex; gap: 12px; background: #eaf5ff; border-top: 1px solid #bddcff; padding: 17px; }
+.sidebar-help > i { color: var(--blue); font-size: 1.35rem; }
+.sidebar-help strong { font-size: .78rem; }
+.sidebar-help p { color: var(--muted); font-size: .7rem; margin: 5px 0; }
+.sidebar-help a { color: var(--blue); font-weight: 800; font-size: .72rem; }
+.catalogue-results { min-width: 0; }
+.catalogue-toolbar { min-height: 56px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 11px 15px; }
+.catalogue-toolbar > div { display: flex; gap: 6px; align-items: baseline; }
+.catalogue-toolbar span { color: var(--muted); font-size: .78rem; }
+.sort-form { display: flex; align-items: center; gap: 8px; }
+.sort-form label { font-size: .74rem; color: var(--muted); }
+.sort-form select { border: 1px solid #bfcbd8; padding: 8px; background: #fff; }
+.catalogue-delivery-note { display: flex; gap: 9px; align-items: center; background: #f0faf5; border: 1px solid #bde3cf; color: #17643b; padding: 9px 13px; margin: 10px 0; font-size: .73rem; }
+.takealot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.takealot-card { position: relative; }
+.product-image-link, .product-title-link { text-decoration: none; color: inherit; }
+.takealot-card .product-card-image { min-height: 205px; }
+.takealot-card .product-card-image img { height: 205px; }
+.takealot-card .product-card-body { padding: 13px; }
+.takealot-card .product-title { font-size: .88rem; min-height: 3.7em; }
+.takealot-pricing .price { font-size: 1.2rem; }
+.product-fulfilment { display: grid; gap: 4px; margin-top: 4px; }
+.product-fulfilment small { color: var(--muted); font-size: .66rem; }
+.product-fulfilment i { margin-right: 3px; }
+.card-commerce-actions { display: grid; grid-template-columns: 1fr 40px; gap: 7px; margin-top: 6px; }
+.card-commerce-actions form { width: 100%; }
+.card-add { width: 100%; min-height: 40px; padding: 8px; font-size: .76rem; }
+.card-add:disabled { background: #aeb8c2; cursor: not-allowed; }
+.card-wishlist { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #e15b75; color: #d52649; border-radius: 5px; text-decoration: none; }
+.card-wishlist:hover { background: #fff0f3; }
+.empty-state i { color: var(--blue); font-size: 2.5rem; }
+
+@media (max-width: 1050px) {
+  .catalogue-layout { grid-template-columns: 210px minmax(0, 1fr); }
+  .takealot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .catalogue-banner { align-items: flex-start; flex-direction: column; }
+  .catalogue-assurance { min-width: 0; width: 100%; }
+  .catalogue-layout { grid-template-columns: 1fr; }
+  .catalogue-sidebar { position: static; }
+}
+
+@media (max-width: 520px) {
+  .catalogue-toolbar { align-items: flex-start; flex-direction: column; }
+  .takealot-grid { grid-template-columns: 1fr; }
 }
