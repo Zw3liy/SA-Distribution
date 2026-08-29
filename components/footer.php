@@ -2,7 +2,7 @@
     <div class="container footer-grid retail-footer-grid">
         <div>
             <a class="retail-brand footer-logo" href="<?= esc($appConfig['base_url']); ?>">
-                <span class="brand-mark">SA</span>
+                <span class="brand-mark"><img src="<?= esc(rtrim((string) $appConfig['base_url'], '/') . '/'); ?>images/logo-round.png" alt=""></span>
                 <span class="brand-copy"><strong>SA Distribution</strong><small>Enterprise IT &amp; Business Solutions</small></span>
             </a>
             <p>Connecting South African businesses with trusted global technology—stock, price and service you can rely on.</p>

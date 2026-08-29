@@ -19,7 +19,7 @@ $baseUrl = rtrim((string) $appConfig['base_url'], '/') . '/';
     <div class="retail-mainbar">
         <div class="container mainbar-inner">
             <a class="retail-brand" href="<?= esc($baseUrl); ?>" aria-label="SA Business Distribution home">
-                <span class="brand-mark">SA</span>
+                <span class="brand-mark"><img src="<?= esc($baseUrl); ?>images/logo-round.png" alt=""></span>
                 <span class="brand-copy">
                     <strong>SA Distribution</strong>
                     <small>Enterprise IT &amp; Business Solutions</small>
