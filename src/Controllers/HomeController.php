@@ -12,9 +12,9 @@ use App\Support\View;
 final class HomeController
 {
     private Config $config;
-    private ProductServiceInterface $products;
+    private ?ProductServiceInterface $products;
 
-    public function __construct(Config $config, ProductServiceInterface $products)
+    public function __construct(Config $config, ?ProductServiceInterface $products = null)
     {
         $this->config = $config;
         $this->products = $products;
@@ -24,8 +24,12 @@ final class HomeController
     {
         return Response::html(View::render('pages/home', [
             'appConfig' => $this->config->all(),
-            'featuredProducts' => $this->products->getProducts([], 'featured', 8, 0),
-            'categories' => $this->products->getCategories(),
+            'featuredProducts' => $this->products !== null
+                ? $this->products->getProducts([], 'featured', 8, 0)
+                : [],
+            'categories' => $this->products !== null
+                ? $this->products->getCategories()
+                : [],
         ]));
     }
 }
