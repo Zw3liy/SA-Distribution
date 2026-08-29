@@ -10,7 +10,16 @@
         </div>
         <div><h2>Shop</h2><a href="products.php?search=laptop">Laptops</a><a href="products.php?search=network">Networking</a><a href="products.php?search=security">CCTV &amp; Security</a><a href="products.php?search=printer">Office &amp; Printing</a><a href="products.php?sort=featured">Latest deals</a></div>
         <div><h2>Customer service</h2><a href="account-dashboard.php">My account</a><a href="cart.php">Cart</a><a href="wishlist.php">Wishlist</a><a href="quote-request.php">Request a quote</a><a href="#contact">Delivery &amp; returns</a></div>
-        <div><h2>Contact</h2><p><i class="bi bi-geo-alt"></i> Cape Town, South Africa</p><p><a href="tel:+27123456789"><i class="bi bi-telephone"></i> +27 12 345 6789</a></p><p><a href="mailto:sales@sabusinessdistribution.co.za"><i class="bi bi-envelope"></i> sales@sabusinessdistribution.co.za</a></p><a class="footer-quote" href="quote-request.php">Get a business quote</a></div>
+        <div>
+            <h2>Contact</h2>
+            <p><i class="bi bi-geo-alt"></i> Cape Town, South Africa</p>
+            <p><a href="tel:+27651109824"><i class="bi bi-telephone"></i> +27 65 110 9824</a></p>
+            <p><a href="https://wa.me/27651109824" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp sales</a></p>
+            <p><a href="mailto:sales@sbdistibution.co.za"><i class="bi bi-envelope"></i> sales@sbdistibution.co.za</a></p>
+            <p><i class="bi bi-clock"></i> Always open</p>
+            <a href="https://www.facebook.com/profile.php?id=61584556474368" target="_blank" rel="noopener"><i class="bi bi-facebook"></i> Facebook</a>
+            <a class="footer-quote" href="quote-request.php">Get a business quote</a>
+        </div>
     </div>
     <div class="container footer-bottom"><p>&copy; <?= date('Y'); ?> SA Business Distribution. All rights reserved.</p><p>Business technology, delivered.</p></div>
 </footer>
